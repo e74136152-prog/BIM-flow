@@ -1,0 +1,1142 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>全生命週期工程透明查驗與 AI 營運平台</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Stencil:wght@600;800&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0B3D5C; --ink-deep:#082C44; --ink-panel:#0E4468;
+    --line-cyan:#6FB8DE; --line-cyan-dim:rgba(111,184,222,0.22); --line-cyan-dimmer:rgba(111,184,222,0.12);
+    --paper:#F0EAD9; --paper-line:#D8CBA8; --graphite:#1B2A33;
+    --white-ink:#EAF4FA; --amber:#E8952C; --danger:#C6543A; --verified:#4C9A6B;
+    --display:'Big Shoulders Stencil',sans-serif; --body:'IBM Plex Sans',sans-serif; --mono:'IBM Plex Mono',monospace;
+  }
+  *{box-sizing:border-box;} html,body{margin:0;padding:0;}
+  body{
+    background:var(--ink); color:var(--white-ink); font-family:var(--body); min-height:100vh;
+    background-image: linear-gradient(var(--line-cyan-dimmer) 1px, transparent 1px), linear-gradient(90deg, var(--line-cyan-dimmer) 1px, transparent 1px);
+    background-size:28px 28px;
+  }
+  a{color:inherit; text-decoration:none;}
+
+  /* ---------- Login Overlay ---------- */
+  .login-overlay {
+    position: fixed; inset: 0; background: var(--ink-deep); z-index: 9999;
+    display: flex; align-items: center; justify-content: center;
+    background-image: radial-gradient(var(--line-cyan-dim) 1px, transparent 1px); background-size: 30px 30px;
+  }
+  .login-box {
+    background: var(--ink-panel); border: 1px solid var(--line-cyan); padding: 40px; border-radius: 6px;
+    text-align: center; width: 380px; max-width: 90%; box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+  }
+  .login-box h1 { font-family: var(--display); font-size: 26px; color: var(--white-ink); margin: 0 0 8px; }
+  .login-box p { color: var(--line-cyan); font-size: 13px; margin-bottom: 28px; font-family: var(--mono); }
+  .login-box select {
+    width: 100%; padding: 12px; margin-bottom: 24px; background: var(--ink-deep); color: var(--white-ink);
+    border: 1px solid var(--line-cyan-dim); border-radius: 4px; font-family: var(--mono); font-size: 14px; cursor: pointer;
+  }
+  .login-btn {
+    width: 100%; padding: 14px; background: var(--amber); border: none; border-radius: 4px;
+    color: var(--ink-deep); font-weight: 700; font-size: 14px; cursor: pointer; font-family: var(--mono); transition: .2s;
+  }
+  .login-btn:hover { background: #f0a341; }
+
+  /* ---------- Header ---------- */
+  .titleblock{
+    display:flex; align-items:stretch; justify-content:space-between; border-bottom:2px solid var(--line-cyan);
+    background:linear-gradient(180deg, var(--ink-deep), var(--ink)); padding:14px 24px; flex-wrap:wrap; gap:12px;
+  }
+  .titleblock .stamp{display:flex; align-items:center; gap:16px;}
+  .stamp-box{ border:2px solid var(--line-cyan); padding:6px 12px; font-family:var(--mono); font-size:11px; color:var(--line-cyan); }
+  .stamp-box b{color:var(--white-ink); font-weight:600;}
+  .titleblock h1{ font-family:var(--display); font-weight:800; font-size:22px; margin:0; color:var(--white-ink); }
+  .titleblock .sub{font-family:var(--mono); font-size:11px; color:var(--line-cyan); margin-top:2px;}
+  .titleblock .meta{display:flex; gap:10px; align-items:center; font-family:var(--mono); font-size:11px; color:var(--line-cyan);}
+  .role-badge { background: rgba(111,184,222,0.15); padding: 3px 8px; border-radius: 12px; color: var(--line-cyan); font-weight: 600;}
+  .logout-link { color: var(--amber); cursor: pointer; text-decoration: underline; margin-left: 10px; }
+
+  /* ---------- Control bar ---------- */
+  .control-bar{
+    display:flex; gap:18px; align-items:center; padding:10px 24px; background:var(--ink-deep);
+    border-bottom:1px solid var(--line-cyan-dim); flex-wrap:wrap; font-family:var(--mono); font-size:12px;
+  }
+  .control-bar .field label{color:var(--line-cyan); margin-right:8px;}
+  .control-bar select{
+    background:var(--ink-panel); color:var(--white-ink); border:1px solid var(--line-cyan-dim);
+    padding:6px 10px; border-radius:3px; font-family:var(--mono); font-size:12px; cursor:pointer;
+  }
+  .scope-summary{color:var(--amber); margin-left:auto; font-size:11.5px;}
+
+  /* ---------- Tabs ---------- */
+  .tabs{
+    display:flex; gap:2px; padding:0 24px; background:var(--ink-deep); border-bottom:2px solid var(--line-cyan-dim); overflow-x:auto;
+  }
+  .tab{
+    font-family:var(--mono); font-size:12px; color:var(--line-cyan); background:transparent; border:none;
+    border-top:2px solid transparent; padding:12px 18px; cursor:pointer; white-space:nowrap; position:relative; transition:.2s;
+  }
+  .tab .num{opacity:.6; margin-right:6px;}
+  .tab:hover{color:var(--white-ink); background:var(--line-cyan-dimmer);}
+  .tab.active{color:var(--white-ink); background:var(--ink); border-top:2px solid var(--amber);}
+  .tab.active::after{content:''; position:absolute; bottom:-2px;left:0;right:0;height:2px; background:var(--ink);}
+
+  /* ---------- Layout & Utilities ---------- */
+  .stage{padding:24px 24px 60px; max-width:1400px; margin:0 auto;}
+  .panel{display:none; animation:fadein .3s ease;}
+  .panel.active{display:block;}
+  @keyframes fadein{from{opacity:0; transform:translateY(4px);} to{opacity:1; transform:translateY(0);}}
+  .eyebrow{font-family:var(--mono); font-size:11px; color:var(--amber); letter-spacing:0.05em; text-transform:uppercase; margin:0 0 6px;}
+  .panel-title{font-family:var(--display); font-size:26px; font-weight:800; margin:0 0 6px; color:var(--white-ink);}
+  .panel-desc{color:var(--line-cyan); font-size:13px; max-width:640px; line-height:1.6; margin-bottom:20px;}
+  .card{background:var(--ink-panel); border:1px solid var(--line-cyan-dim); border-radius:4px; padding:18px;}
+
+  /* ---------- 00 Overview Dashboard Visuals ---------- */
+  .dash-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; margin-bottom: 24px; }
+  
+  .heatmap-wrap { display:flex; flex-direction:column; gap:6px; }
+  .hm-row { display:flex; align-items:center; gap:8px; font-family:var(--mono); font-size:11px; }
+  .hm-label { width:30px; text-align:right; color:var(--line-cyan); }
+  .hm-blocks { display:flex; gap:4px; flex:1; }
+  .hm-block { height:14px; flex:1; border-radius:2px; background:var(--line-cyan-dim); }
+  .hm-block.done { background:var(--verified); }
+  .hm-block.prog { background:var(--amber); }
+  .hm-block.warn { background:var(--danger); }
+  
+  .donut-wrap { display:flex; align-items:center; gap:24px; }
+  .donut {
+    width: 80px; height: 80px; border-radius: 50%;
+    background: conic-gradient(var(--verified) 0% 65%, var(--amber) 65% 85%, var(--line-cyan-dim) 85% 100%);
+    display:flex; align-items:center; justify-content:center;
+  }
+  .donut-inner { width: 56px; height: 56px; background: var(--ink-panel); border-radius: 50%; display:flex; align-items:center; justify-content:center; font-family:var(--display); font-size:18px;}
+  .donut-legend { font-family:var(--mono); font-size:11px; display:flex; flex-direction:column; gap:6px; }
+  .dl-item::before { content:''; display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px; }
+
+  .ms-chart { display:flex; flex-direction:column; gap:10px; margin-top:8px;}
+  .ms-row { position:relative; padding-bottom:12px; border-bottom:1px solid var(--line-cyan-dimmer);}
+  .ms-row:last-child { border-bottom:none; padding-bottom:0;}
+  .ms-name { font-size:12px; color:var(--white-ink); margin-bottom:6px; display:flex; justify-content:space-between;}
+  .ms-bar-bg { height:8px; background:var(--line-cyan-dim); border-radius:4px; position:relative; overflow:hidden;}
+  .ms-bar-plan { position:absolute; top:0; left:0; height:100%; background:rgba(255,255,255,0.3); z-index:1; border-right:2px solid #fff;}
+  .ms-bar-act { position:absolute; top:0; left:0; height:100%; background:var(--verified); z-index:2;}
+  .ms-bar-act.late { background:var(--danger); }
+
+  /* ---------- 01 BIM tab ---------- */
+  .bim-layout{display:grid; grid-template-columns:280px 1fr; gap:18px;}
+  .step-label{font-family:var(--mono); font-size:11px; color:var(--amber); margin-bottom:8px; letter-spacing:.04em; text-transform:uppercase;}
+  .tree{font-family:var(--mono); font-size:12.5px;}
+  .tree-group{margin-bottom:6px;}
+  .tree-h{color:var(--amber); padding:6px 4px; font-weight:600; letter-spacing:0.02em;}
+  .tree-item{padding:7px 10px 7px 20px; cursor:pointer; color:var(--line-cyan); border-left:2px solid transparent; transition:.15s;}
+  .tree-item:hover{background:var(--line-cyan-dimmer); color:var(--white-ink);}
+  .tree-item.active{color:var(--white-ink); background:var(--line-cyan-dimmer); border-left:2px solid var(--amber);}
+  .bim-view{display:flex; flex-direction:column; gap:16px;}
+
+  .upload-gate{
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px;
+    height:220px; border:1px dashed var(--line-cyan-dim); border-radius:3px; color:var(--line-cyan);
+    font-family:var(--mono); font-size:12px; text-align:center; padding:0 20px;
+  }
+  .upload-btns{display:flex; gap:10px;}
+  .upload-btn{
+    font-family:var(--mono); font-size:13px; padding:10px 20px; border:1px solid var(--amber); color:var(--amber);
+    background:transparent; border-radius:24px; cursor:pointer; transition:.15s; font-weight:600;
+  }
+  .upload-btn:hover{background:var(--amber); color:var(--ink-deep);}
+
+  .compare-box{
+    position:relative; height:320px; border:1px solid var(--line-cyan-dim); border-radius:3px; overflow:hidden;
+    background:repeating-linear-gradient(45deg, rgba(111,184,222,.06) 0 2px, transparent 2px 14px), var(--ink-deep);
+  }
+  .layer{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:8px; transition: opacity 0.3s;}
+  .layer.photo{background:linear-gradient(160deg,#1c3f52,#0e2431);}
+  .layer.bim{background:transparent;}
+  .layer.bim .wire{width:80%; height:70%; border:1.5px dashed var(--amber); position:relative; opacity:0.8;}
+  .layer.bim .wire::before, .layer.bim .wire::after{content:''; position:absolute; background:var(--amber);}
+  .layer.bim .wire::before{top:50%; left:0; right:0; height:1px;}
+  .layer.bim .wire::after{left:50%; top:0; bottom:0; width:1px;}
+  .layer .tag{font-family:var(--mono); font-size:10px; color:var(--white-ink); background:var(--ink-deep); padding:2px 8px; border-radius:2px; opacity:0.9;}
+
+  .coord-table{width:100%; border-collapse:collapse; font-family:var(--mono); font-size:12px;}
+  .coord-table th{text-align:left; color:var(--amber); font-weight:600; padding:8px 10px; border-bottom:1px solid var(--line-cyan-dim); text-transform:uppercase; font-size:10.5px; letter-spacing:.04em;}
+  .coord-table td{padding:8px 10px; border-bottom:1px solid var(--line-cyan-dimmer); color:var(--white-ink);}
+  .pass{color:var(--verified);} .fail{color:var(--danger);}
+
+  /* ---------- 02 WBS Progress Timeline & Cards ---------- */
+  .filters{display:flex; gap:8px; margin-bottom:18px; flex-wrap:wrap;}
+  .chip{ font-family:var(--mono); font-size:11.5px; padding:6px 14px; border:1px solid var(--line-cyan-dim); border-radius:20px; color:var(--line-cyan); cursor:pointer; background:transparent; transition:.15s; }
+  .chip:hover{border-color:var(--line-cyan);} .chip.active{background:var(--amber); border-color:var(--amber); color:var(--ink-deep); font-weight:600;}
+
+  .phase-group{margin-bottom:24px;}
+  .phase-head{display:flex; justify-content:space-between; align-items:center; padding:10px 4px; border-bottom:1px solid var(--line-cyan-dim); margin-bottom:12px;}
+  .phase-head .pname{font-family:var(--display); font-size:17px; color:var(--white-ink); letter-spacing:.02em;}
+  .task-rail{border-left:2px solid var(--line-cyan-dim); margin-left:8px; padding-left:20px;}
+  .task-row{position:relative; padding:14px; margin-bottom:12px; background:var(--ink-deep); border:1px solid var(--line-cyan-dim); border-radius:4px; transition:.15s;}
+  .task-row::before{content:''; position:absolute; left:-26px; top:18px; width:9px; height:9px; border-radius:50%; background:var(--line-cyan-dim); border:2px solid var(--ink);}
+  .task-row.done::before{background:var(--verified);} .task-row.inprogress::before{background:var(--amber);} .task-row.delayed::before{background:var(--danger);}
+  
+  .task-top{display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:8px; cursor:pointer;}
+  .task-loc{font-weight:600; font-size:13.5px; color:var(--white-ink); display:flex; align-items:center; gap:8px;}
+  .task-meta{font-family:var(--mono); font-size:10.5px; color:var(--line-cyan); margin-top:6px; display:flex; flex-wrap:wrap; gap:12px;}
+  .t-badge{font-family:var(--mono); font-size:10px; padding:3px 10px; border-radius:12px; font-weight:600;}
+  .t-badge.todo{color:var(--line-cyan); border:1px solid var(--line-cyan-dim);}
+  .t-badge.inprogress{color:var(--amber); border:1px solid var(--amber); background:rgba(232,149,44,.12);}
+  .t-badge.done{color:var(--verified); border:1px solid var(--verified); background:rgba(76,154,107,.12);}
+  .t-badge.delayed{color:var(--danger); border:1px solid var(--danger); background:rgba(198,84,58,.12);}
+
+  .task-detail{display:none; margin-top:14px; padding-top:14px; border-top:1px dashed var(--line-cyan-dimmer); animation:fadein .2s ease;}
+  .task-detail.open{display:block;}
+  .detail-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; font-size:12px; }
+  .d-block { background: rgba(0,0,0,0.2); padding:10px 12px; border-radius:4px; border:1px solid var(--line-cyan-dimmer);}
+  .d-title { font-family:var(--mono); font-size:10px; color:var(--amber); margin-bottom:6px; text-transform:uppercase;}
+  .d-content { color:var(--white-ink); line-height:1.6; }
+  .ifc-ref { font-family:var(--mono); font-size:9.5px; background:#1c3f52; padding:2px 6px; border-radius:2px; word-break:break-all; color:#8ab4f8;}
+  .dep-tag { display:inline-block; border:1px solid var(--line-cyan); padding:2px 6px; border-radius:2px; font-family:var(--mono); font-size:9.5px; margin-right:4px;}
+  
+  .audit-log { font-family:var(--mono); font-size:10px; color:var(--line-cyan); margin-top:12px; padding:8px; border-left:2px solid var(--line-cyan-dim);}
+  .audit-log div { margin-bottom:4px; }
+  .inspect-box { margin-top:12px; padding:12px; border:1px solid var(--amber); border-radius:4px; background:rgba(232,149,44,.05); display:flex; justify-content:space-between; align-items:center;}
+  .btn-inspect { background:var(--amber); color:var(--ink-deep); border:none; padding:6px 14px; font-family:var(--mono); font-weight:bold; border-radius:4px; cursor:pointer;}
+  .btn-inspect:disabled { background:var(--line-cyan-dim); color:var(--line-cyan); cursor:not-allowed;}
+  
+  .gps-note { font-family:var(--mono); font-size:9px; color:var(--verified); display:flex; align-items:center; gap:4px; margin-top:6px;}
+
+  /* ---------- 03 Issue tab ---------- */
+  .issue-layout{display:grid; grid-template-columns:1fr 340px; gap:18px;}
+  .floorplan{border:1px solid var(--line-cyan-dim); border-radius:3px; background:var(--ink-deep); padding:10px; position:relative; height:320px;}
+  .legend{display:flex; gap:16px; margin-top:12px; font-family:var(--mono); font-size:11px; color:var(--line-cyan); flex-wrap:wrap;}
+  .legend span{display:inline-flex; align-items:center; gap:6px;}
+  .dotlg{width:9px; height:9px; border-radius:50%; display:inline-block;}
+  .issue-empty{color:var(--line-cyan); font-size:12.5px; font-family:var(--mono); text-align:center; padding:40px 10px;}
+  .issue-detail .idnum{font-family:var(--mono); color:var(--amber); font-size:11px; margin-bottom:4px;}
+  .issue-detail h4{margin:0 0 8px; font-size:15px; color:var(--white-ink);}
+  .issue-detail .row{display:flex; justify-content:space-between; font-size:11.5px; padding:5px 0; border-bottom:1px solid var(--line-cyan-dimmer); font-family:var(--mono); align-items:center;}
+  .issue-detail .row span:first-child{color:var(--line-cyan);}
+  .ack-badge{font-family:var(--mono); font-size:10px; padding:3px 10px; border-radius:10px; font-weight:600;}
+  .ack-badge.unread{color:var(--danger); border:1px solid var(--danger); background:rgba(198,84,58,.12);}
+  .ack-badge.processing{color:var(--amber); border:1px solid var(--amber); background:rgba(232,149,44,.12);}
+  .ack-badge.acknowledged{color:var(--verified); border:1px solid var(--verified); background:rgba(76,154,107,.12);}
+  .contact-row{display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;}
+  .contact-chip{font-family:var(--mono); font-size:10.5px; padding:5px 10px; border:1px solid var(--line-cyan-dim); border-radius:14px; color:var(--line-cyan); text-decoration:none;}
+  .contact-chip:hover{border-color:var(--line-cyan); color:var(--white-ink);}
+  .ack-btn{ margin-top:14px; width:100%; font-family:var(--mono); font-size:12.5px; padding:10px; border:1px solid var(--verified); color:var(--verified); background:transparent; border-radius:4px; cursor:pointer; font-weight:600;}
+  .ack-btn:hover{background:var(--verified); color:var(--ink-deep);}
+  .ack-btn:disabled{opacity:.6; cursor:default; border-color:var(--line-cyan-dim); color:var(--line-cyan-dim); background:transparent;}
+
+  /* ---------- 04 Owner tab ---------- */
+  .owner-wrap{background:var(--paper); color:var(--graphite); border-radius:6px; padding:32px; margin:-6px 0 0;}
+  .owner-wrap .eyebrow{color:#B5762A;}
+  .owner-wrap .panel-title{color:var(--graphite); font-family:var(--body); font-weight:700; font-size:26px;}
+  .owner-wrap .panel-desc{color:#5b5347; max-width:600px;}
+  .owner-toolbar{display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:12px;}
+  .owner-toggle{display:flex; gap:4px; background:#EDE4D0; padding:4px; border-radius:20px;}
+  .ot-btn{font-family:var(--body); font-size:12.5px; padding:7px 16px; border-radius:16px; border:none; background:transparent; color:#5b5347; cursor:pointer; font-weight:500;}
+  .ot-btn.active{background:#fff; color:#B5762A; font-weight:700; box-shadow:0 1px 3px rgba(0,0,0,.1);}
+  .pdf-btn{font-family:var(--mono); font-size:11.5px; padding:9px 18px; border:1px solid #B5762A; color:#B5762A; background:#fff; border-radius:20px; cursor:pointer; transition:.15s;}
+  .pdf-btn:hover{background:#B5762A; color:#fff;}
+  .owner-progress{background:#fff; border:1px solid var(--paper-line); border-radius:6px; padding:22px; margin-bottom:22px;}
+  .op-top{display:flex; justify-content:space-between; align-items:baseline; margin-bottom:10px;}
+  .op-top .big{font-size:38px; font-weight:700; color:#B5762A;}
+  .op-top .lbl{font-size:13px; color:#5b5347;}
+  .bar-bg{background:#EDE4D0; border-radius:20px; height:12px; overflow:hidden;}
+  .bar-fill{background:#B5762A; height:100%; border-radius:20px;}
+  .owner-list{list-style:none; margin:0; padding:0;}
+  .owner-list li{display:flex; gap:14px; align-items:flex-start; padding:14px 0; border-bottom:1px solid var(--paper-line);}
+  .owner-list li:last-child{border-bottom:none;}
+  .ocheck{width:24px; height:24px; border-radius:50%; background:#DCEEE1; color:#357A54; display:flex; align-items:center; justify-content:center; font-size:13px; flex:none; font-weight:700;}
+  .owner-list .oname{font-weight:600; font-size:14.5px;}
+  .owner-list .odate{font-size:12px; color:#8a8171; margin-top:2px;}
+  .owner-footer{margin-top:22px; padding:18px 20px; background:#fff; border:1px solid var(--paper-line); border-radius:6px; font-size:13.5px; line-height:1.8; color:#4a4234;}
+
+  .line-wrap{display:flex; justify-content:center; padding:12px 0 4px;}
+  .line-phone{width:320px; background:#7494C0; border-radius:26px; padding:12px 8px 16px; box-shadow:0 10px 28px rgba(0,0,0,.25);}
+  .line-header{background:#3E4A89; color:#fff; padding:10px 14px; border-radius:10px 10px 0 0; font-size:13px; font-weight:600;}
+  .line-body{background:#8DA9CE; padding:14px 10px; min-height:220px; border-radius:0 0 10px 10px;}
+  .line-time{font-size:10px; color:#eef3ff; text-align:center; margin-bottom:10px;}
+  .line-bubble{background:#fff; border-radius:14px; padding:12px 14px; margin-bottom:10px; font-size:12.5px; line-height:1.9; color:#2f2f2f; max-width:92%;}
+  .line-bubble.system{background:#06C755; color:#fff; font-weight:700; max-width:80%;}
+  .line-caption{text-align:center; font-family:var(--mono); font-size:11px; color:#5b5347; margin-top:6px;}
+
+  /* ---------- 05 Input tab ---------- */
+  .input-grid{display:grid; grid-template-columns:1fr 1fr; gap:18px;}
+  .dropzone{display:block; border:2px dashed var(--line-cyan-dim); border-radius:6px; padding:28px; text-align:center; color:var(--line-cyan); font-family:var(--mono); font-size:12px; cursor:pointer; transition:.15s;}
+  .dropzone:hover{border-color:var(--amber); color:var(--white-ink);}
+  .form-row{margin-bottom:14px;}
+  .form-row label{display:block; font-family:var(--mono); font-size:11px; color:var(--line-cyan); margin-bottom:6px;}
+  .form-row input[type=number], .form-row select{ width:100%; background:var(--ink-deep); border:1px solid var(--line-cyan-dim); color:var(--white-ink); padding:9px 12px; border-radius:3px; font-family:var(--mono); font-size:12.5px; }
+  .sim-result{margin-top:16px; display:none;}
+  .sim-result.show{display:block; animation:fadein .35s ease;}
+  .sim-row{display:flex; justify-content:space-between; font-family:var(--mono); font-size:12px; padding:8px 0; border-bottom:1px solid var(--line-cyan-dimmer);}
+  .sim-row span:first-child{color:var(--line-cyan);}
+
+  /* ---------- 06 LINE Bot tab ---------- */
+  .flow-row{display:flex; gap:0; align-items:stretch; flex-wrap:wrap; margin-bottom:22px;}
+  .flow-step{flex:1 1 220px; background:var(--ink-panel); border:1px solid var(--line-cyan-dim); border-radius:4px; padding:18px; position:relative; margin-right:30px; margin-bottom:16px;}
+  .flow-step:last-child{margin-right:0;}
+  .flow-step:not(:last-child)::after{content:'→'; position:absolute; right:-24px; top:50%; transform:translateY(-50%); color:var(--amber); font-size:20px; font-weight:700;}
+  .flow-step .fnum{font-family:var(--mono); font-size:11px; color:var(--amber);}
+  .flow-step h4{margin:6px 0; font-size:14.5px; color:var(--white-ink);}
+  .flow-step p{font-size:11.5px; color:var(--line-cyan); line-height:1.6; margin:0;}
+  .callout{border-left:3px solid var(--amber); background:rgba(232,149,44,.08); padding:12px 16px; font-size:12.5px; color:var(--white-ink); line-height:1.7; margin-bottom:20px;}
+
+  @media (max-width: 860px){
+    .dash-grid{grid-template-columns:1fr;}
+    .bim-layout, .issue-layout, .input-grid{grid-template-columns:1fr;}
+    .titleblock{flex-direction:column;}
+    .flow-step{margin-right:0;}
+    .flow-step:not(:last-child)::after{content:'↓'; position:static; display:block; text-align:center; transform:none; margin-top:8px;}
+  }
+
+  @media print{
+    body{background:#fff;}
+    .titleblock, .tabs, .control-bar, .owner-toolbar{display:none !important;}
+    .panel{display:none !important;}
+    #panel-owner{display:block !important;}
+    #owner-line-view{display:none !important;}
+    .owner-wrap{background:#fff; padding:0;}
+    .owner-progress, .owner-footer{box-shadow:none;}
+  }
+</style>
+</head>
+<body>
+
+<!-- Login Modal -->
+<div class="login-overlay" id="login-overlay">
+  <div class="login-box">
+    <h1>工程透明查驗系統</h1>
+    <p>嚴謹權限控管：請選擇身分登入</p>
+    <select id="login-user">
+      <option value="王工地主任" data-role="contractor">王工地主任 (營造廠)</option>
+      <option value="林監造" data-role="supervisor">林監造 (監造單位)</option>
+      <option value="張機電工程師" data-role="contractor">張機電工程師 (分包商)</option>
+      <option value="陳工務經理" data-role="supervisor">陳工務經理 (建設公司)</option>
+      <option value="黃工地主任" data-role="contractor">黃工地主任 (營造廠)</option>
+    </select>
+    <button class="login-btn" id="login-btn">系統登入</button>
+  </div>
+</div>
+
+<div class="titleblock">
+  <div class="stamp">
+    <div class="stamp-box">BIM/IFC 整合<br>REV. <b>E</b></div>
+    <div>
+      <h1>全生命週期工程透明查驗與 AI 營運平台</h1>
+      <div class="sub">落實 WBS 空間層級、法定勘驗與防偽稽核軌跡</div>
+    </div>
+  </div>
+  <div class="meta">
+    <span class="role-badge" id="role-display">登入中...</span>
+    <span id="current-user-display" style="color:var(--white-ink); font-weight:bold; margin-left:8px;"></span>
+    <a class="logout-link" id="logout-btn">登出</a>
+  </div>
+</div>
+
+<div class="control-bar">
+  <div class="field">
+    <label>專案</label>
+    <select id="project-select">
+      <option value="a2">大安區 A2 危老重建案</option>
+      <option value="all">全部專案</option>
+    </select>
+  </div>
+  <div class="field">
+    <label>空間層級(WBS)</label>
+    <select id="wbs-select">
+      <option value="all">全區展開</option>
+      <optgroup label="棟 (Building)">
+        <option value="A棟">A棟 結構體</option>
+        <option value="B棟">B棟 結構體</option>
+      </optgroup>
+      <optgroup label="管線與設備 (MEP / IfcDistribution)">
+        <option value="mep-elec">電力配管系統</option>
+        <option value="mep-plumb">給排水系統</option>
+        <option value="mep-fire">消防通風系統</option>
+      </optgroup>
+    </select>
+  </div>
+  <div class="field" style="margin-left:8px;">
+    <label>檢視範圍</label>
+    <select id="scope-select">
+      <option value="all">全公司</option>
+      <optgroup label="個人視角 (篩選負責人)">
+        <option value="王工地主任">王工地主任 的案子</option>
+        <option value="林監造">林監造 的案子</option>
+        <option value="張機電工程師">張機電工程師 的案子</option>
+        <option value="陳工務經理">陳工務經理 的案子</option>
+        <option value="黃工地主任">黃工地主任 的案子</option>
+      </optgroup>
+    </select>
+  </div>
+  <div class="scope-summary" id="scope-summary">現正檢視：大安區 A2 · 全區展開</div>
+</div>
+
+<div class="tabs">
+  <button class="tab active" data-tab="dashboard"><span class="num">00</span>總覽儀表板</button>
+  <button class="tab" data-tab="bim"><span class="num">01</span>疊合查驗</button>
+  <button class="tab" data-tab="progress"><span class="num">02</span>CPM 進度與勘驗</button>
+  <button class="tab" data-tab="issue"><span class="num">03</span>缺失追蹤</button>
+  <button class="tab" data-tab="owner"><span class="num">04</span>地主摘要</button>
+  <button class="tab" data-tab="input"><span class="num">05</span>資料輸入/AI模擬</button>
+  <button class="tab" data-tab="linebot"><span class="num">06</span>LINE Bot 協同</button>
+</div>
+
+<div class="stage">
+
+  <!-- 00 DASHBOARD -->
+  <div class="panel active" id="panel-dashboard">
+    <p class="eyebrow">Module 00 / Dashboard Visuals</p>
+    <h2 class="panel-title">專案進度儀表板</h2>
+    <p class="panel-desc">依據執行摘要要求，導入樓層進度熱圖、管線完成率圓餅圖與里程碑偏差分析，提供決策層全景視角。</p>
+
+    <div class="dash-grid">
+      <div class="card">
+        <p class="eyebrow">A棟 樓層進度熱圖 (Heatmap)</p>
+        <div class="heatmap-wrap">
+          <div class="hm-row"><div class="hm-label">RF</div><div class="hm-blocks"><div class="hm-block"></div><div class="hm-block"></div><div class="hm-block"></div></div></div>
+          <div class="hm-row"><div class="hm-label">5F</div><div class="hm-blocks"><div class="hm-block"></div><div class="hm-block"></div><div class="hm-block"></div></div></div>
+          <div class="hm-row"><div class="hm-label">4F</div><div class="hm-blocks"><div class="hm-block prog"></div><div class="hm-block"></div><div class="hm-block"></div></div></div>
+          <div class="hm-row"><div class="hm-label">3F</div><div class="hm-blocks"><div class="hm-block done"></div><div class="hm-block prog"></div><div class="hm-block warn"></div></div></div>
+          <div class="hm-row"><div class="hm-label">2F</div><div class="hm-blocks"><div class="hm-block done"></div><div class="hm-block done"></div><div class="hm-block prog"></div></div></div>
+          <div class="hm-row"><div class="hm-label">1F</div><div class="hm-blocks"><div class="hm-block done"></div><div class="hm-block done"></div><div class="hm-block done"></div></div></div>
+          <div class="hm-row"><div class="hm-label">B1</div><div class="hm-blocks"><div class="hm-block done"></div><div class="hm-block done"></div><div class="hm-block done"></div></div></div>
+        </div>
+        <div style="display:flex; gap:10px; font-size:10px; font-family:var(--mono); margin-top:12px; color:var(--line-cyan);">
+          <span><span style="color:var(--verified)">■</span> 已完成</span>
+          <span><span style="color:var(--amber)">■</span> 進行中</span>
+          <span><span style="color:var(--danger)">■</span> 延誤預警</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <p class="eyebrow">機電管線完成率 (MEP Systems)</p>
+        <div class="donut-wrap">
+          <div class="donut"><div class="donut-inner">65%</div></div>
+          <div class="donut-legend">
+            <div class="dl-item" style="--c:var(--verified);"><span style="color:var(--verified)">●</span> 電力配管 (完工)</div>
+            <div class="dl-item" style="--c:var(--amber);"><span style="color:var(--amber)">●</span> 給排水 (施作中)</div>
+            <div class="dl-item" style="--c:var(--line-cyan-dim);"><span style="color:var(--line-cyan)">●</span> 消防通風 (待進場)</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <p class="eyebrow">里程碑計畫與實際對比 (Milestones)</p>
+        <div class="ms-chart">
+          <div class="ms-row">
+            <div class="ms-name"><span>地下基礎勘驗</span> <span>完成</span></div>
+            <div class="ms-bar-bg"><div class="ms-bar-plan" style="width:30%"></div><div class="ms-bar-act" style="width:30%"></div></div>
+          </div>
+          <div class="ms-row">
+            <div class="ms-name"><span>3F 結構封頂</span> <span>進度偏差 +3天</span></div>
+            <div class="ms-bar-bg"><div class="ms-bar-plan" style="width:50%"></div><div class="ms-bar-act late" style="width:55%"></div></div>
+          </div>
+          <div class="ms-row">
+            <div class="ms-name"><span>機電粗裝交接</span> <span>尚未開始</span></div>
+            <div class="ms-bar-bg"><div class="ms-bar-plan" style="width:75%"></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 01 BIM -->
+  <div class="panel" id="panel-bim">
+    <p class="eyebrow">Module 01 / 疊合查驗</p>
+    <h2 class="panel-title">BIM 疊合查驗</h2>
+    <p class="panel-desc">先選擇空間位置，再拍照或上傳現場照片，並可一鍵開啟 BIM 實境疊合校核。</p>
+
+    <div class="bim-layout">
+      <div class="tree card">
+        <p class="step-label">STEP 1 · 選擇空間</p>
+        <div id="bim-tree"></div>
+      </div>
+      <div class="bim-view">
+        <div class="card">
+          <p class="step-label" id="bim-node-label">尚未選擇空間</p>
+          <div id="bim-stage"></div>
+        </div>
+        <div class="card">
+          <p class="eyebrow" style="margin-bottom:10px;">座標比對結果</p>
+          <div class="filters" id="coord-filters">
+            <button class="chip active" data-cf="all">全部</button>
+            <button class="chip" data-cf="pass">合格 (Pass)</button>
+            <button class="chip" data-cf="exceed">超差/異常 (Exceed)</button>
+            <button class="chip" data-cf="inprogress">檢測中 (In Progress)</button>
+          </div>
+          <table class="coord-table">
+            <thead><tr><th>項目</th><th>BIM 座標 (X,Y,Z)</th><th>現場量測座標</th><th>誤差</th><th>結果</th></tr></thead>
+            <tbody id="coord-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 02 PROGRESS TIMELINE & WBS -->
+  <div class="panel" id="panel-progress">
+    <p class="eyebrow">Module 02 / CPM & Data Model</p>
+    <h2 class="panel-title">CPM 進度與法定勘驗追蹤</h2>
+    <p class="panel-desc">整合 IFC 空間索引、前後置依賴關聯與稽核紀錄。具備監造身分者可執行法定勘驗節點簽核，所有上傳照片皆附帶不可篡改之時間與 GPS 戳記。</p>
+
+    <div class="filters" id="progress-filters">
+      <button class="chip active" data-pf="all">全部</button>
+      <button class="chip" data-pf="todo">待辦事項</button>
+      <button class="chip" data-pf="inprogress">進行中</button>
+      <button class="chip" data-pf="done">已完成</button>
+      <button class="chip" data-pf="delayed">異常/延誤</button>
+    </div>
+    <div id="progress-list"></div>
+  </div>
+
+  <!-- 03 ISSUE -->
+  <div class="panel" id="panel-issue">
+    <p class="eyebrow">Module 03 / 缺失追蹤</p>
+    <h2 class="panel-title">空間化工程缺失管理與稽核軌跡</h2>
+    <p class="panel-desc">缺失統一以紅色標記掛載於平面圖上，詳情包含負責人聯絡管道，並可標記簽收狀態以追蹤覆核進度。</p>
+
+    <div class="issue-layout">
+      <div>
+        <div class="floorplan">
+          <svg viewBox="0 0 600 340" width="100%" height="100%" style="position:absolute; inset:0;">
+            <rect x="10" y="10" width="580" height="320" fill="none" stroke="#6FB8DE" stroke-opacity="0.4" stroke-width="1.5"/>
+            <line x1="300" y1="10" x2="300" y2="330" stroke="#6FB8DE" stroke-opacity="0.2"/>
+            <line x1="10" y1="170" x2="590" y2="170" stroke="#6FB8DE" stroke-opacity="0.2"/>
+            <text x="24" y="30" fill="#6FB8DE" font-family="IBM Plex Mono" font-size="11">現正檢視樓層平面（示意）</text>
+          </svg>
+          <div id="issue-pins" style="position:absolute; inset:0;"></div>
+        </div>
+        <div class="legend" id="issue-legend"></div>
+      </div>
+      <div id="issue-panel-wrap">
+        <div class="card issue-empty">點選平面圖上的紅色標記，查看缺失詳情、負責人與通報狀態</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 04 OWNER -->
+  <div class="panel" id="panel-owner">
+    <div class="owner-wrap">
+      <p class="eyebrow">地主專區 · 簡明工程月報</p>
+      <h2 class="panel-title">更新戶與地主工程進度摘要</h2>
+      <p class="panel-desc">這裡把工地現場最重要的事，用您看得懂的方式整理出來 —— 每一項隱蔽工程封閉前，都已經拍照存證並記錄位置。</p>
+
+      <div class="owner-toolbar">
+        <div class="owner-toggle">
+          <button class="ot-btn active" data-oview="web">月報網頁檢視</button>
+          <button class="ot-btn" data-oview="line">LINE 圖卡預覽</button>
+        </div>
+        <button class="pdf-btn" id="pdf-export-btn">📄 匯出地主月報 PDF</button>
+      </div>
+
+      <div id="owner-web-view">
+        <div class="owner-progress">
+          <div class="op-top"><span class="big">78%</span><span class="lbl">本月整體工程進度</span></div>
+          <div class="bar-bg"><div class="bar-fill" style="width:78%;"></div></div>
+        </div>
+        <ul class="owner-list">
+          <li><div class="ocheck">✓</div><div><div class="oname">3F 套管配置</div><div class="odate">已現場拍照存證，7/15 完成</div></div></li>
+          <li><div class="ocheck">✓</div><div><div class="oname">4F 給排水配管</div><div class="odate">已現場拍照存證，7/18 完成</div></div></li>
+          <li><div class="ocheck">✓</div><div><div class="oname">B 棟機電室設備定位</div><div class="odate">已現場拍照存證，7/20 完成</div></div></li>
+          <li><div class="ocheck" style="background:#F7E7CE; color:#B5762A;">…</div><div><div class="oname">5F 弱電配線</div><div class="odate">進行中，預計 7/25 完成</div></div></li>
+        </ul>
+        <div class="owner-footer">所有隱蔽工程在封閉前，都會建立照片與座標紀錄，未來若有任何疑問，都可以調閱查證。如果想更了解目前的工程狀況，歡迎預約現場說明。</div>
+      </div>
+
+      <div id="owner-line-view" style="display:none;">
+        <div class="line-wrap">
+          <div class="line-phone">
+            <div class="line-header">👷 大安區 A2 危老重建工程小組</div>
+            <div class="line-body">
+              <div class="line-time">今天 09:00</div>
+              <div class="line-bubble system">📢 7 月工程進度月報</div>
+              <div class="line-bubble">
+                本月整體工程進度 <b>78%</b><br><br>
+                ✅ 3F 套管配置（7/15 完成）<br>
+                ✅ 4F 給排水配管（7/18 完成）<br>
+                ✅ B 棟機電室設備定位（7/20 完成）<br>
+                🔧 5F 弱電配線 進行中（預計 7/25）
+              </div>
+              <div class="line-bubble">所有隱蔽工程封閉前都已拍照存證，歡迎預約現場說明 🙌</div>
+            </div>
+          </div>
+        </div>
+        <div class="line-caption">示意：建設公司 / 客服可直接將此圖卡內容貼入 LINE 群組通知地主</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 05 INPUT & AI SIMULATION -->
+  <div class="panel" id="panel-input">
+    <p class="eyebrow">Module 05 / 匯入與分析</p>
+    <h2 class="panel-title">進度排程匯入與 AI 模擬分析</h2>
+    <p class="panel-desc">上傳人工排程並鏈結至 BIM 模型；輸入延期天數或技術規範變更後，AI 會重新模擬對完工時程的影響。</p>
+
+    <div class="input-grid">
+      <div class="card">
+        <p class="eyebrow" style="margin-bottom:10px;">匯入工程進度檔</p>
+        <label class="dropzone" for="gantt-file">
+          📁 拖曳或點擊選擇 Gantt / CSV 檔案<br>
+          <span id="file-name" style="color:var(--white-ink);">尚未選擇檔案</span>
+        </label>
+        <input type="file" id="gantt-file" accept=".csv,.xlsx,.mpp" style="display:none;">
+        <button class="upload-btn" id="link-bim-btn" style="margin-top:14px; width:100%; border-radius:4px;">🔗 鏈結至 BIM 模型</button>
+        <div class="mode-note" id="link-note" style="display:none; margin-top:12px; margin-bottom:0; color:var(--verified); font-family:var(--mono); font-size:11px;">✓ 已鏈結：排程工項將自動對應至 BIM 空間索引</div>
+      </div>
+
+      <div class="card">
+        <p class="eyebrow" style="margin-bottom:10px;">情境模擬</p>
+        <div class="form-row">
+          <label>延期天數</label>
+          <input type="number" id="delay-days" min="0" value="7">
+        </div>
+        <div class="form-row">
+          <label>技術規範 / 條件變更</label>
+          <select id="scenario-select">
+            <option value="material">材料到貨延遲</option>
+            <option value="spec">技術規範變更</option>
+            <option value="weather">天候影響</option>
+            <option value="other">其他</option>
+          </select>
+        </div>
+        <button class="upload-btn" id="run-sim-btn" style="width:100%; border-radius:4px;">🤖 執行 AI 模擬重新計算</button>
+
+        <div class="sim-result" id="sim-result">
+          <div class="sim-row"><span>原預計完工日</span><span id="sim-old-date"></span></div>
+          <div class="sim-row"><span>AI 新預估完工日</span><span id="sim-new-date"></span></div>
+          <div class="sim-row"><span>受影響工項數</span><span id="sim-affected"></span></div>
+          <p style="font-size:12.5px; color:var(--white-ink); line-height:1.7; margin-top:10px;" id="sim-advice"></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 06 LINE BOT -->
+  <div class="panel" id="panel-linebot">
+    <p class="eyebrow">Module 06 / LINE Bot 協同作業</p>
+    <h2 class="panel-title">LINE Bot × 人工 Double-Check 機制</h2>
+    <p class="panel-desc">第一線人員只需在 LINE 上傳照片，AI 自動比對與紀錄；當信心度不足或標記異常時，系統自動觸發監造覆核派工。</p>
+
+    <div class="flow-row">
+      <div class="flow-step"><div class="fnum">STEP 1</div><h4>📷 工地照片上傳</h4><p>工地主任於 LINE 群組直接拍照或上傳現場照片，免安裝額外 App。</p></div>
+      <div class="flow-step"><div class="fnum">STEP 2</div><h4>🤖 AI 自動比對與紀錄</h4><p>AI 依 BIM 座標與工項自動歸戶，記錄時間戳記與信心度，寫入 Master DB。</p></div>
+      <div class="flow-step"><div class="fnum">STEP 3</div><h4>👷 人工 Double-Check 派單</h4><p>信心度不足或標記異常時，系統自動建立覆核任務並通知監造。</p></div>
+    </div>
+
+    <div class="callout">⚠️ 觸發條件：AI 信心度低於 85%，或 AI 判讀為「異常」時，自動建立監造覆核派工單，並同步發送 Email + Slack 通知。</div>
+
+    <div class="line-wrap">
+      <div class="line-phone">
+        <div class="line-header">🤖 A2 工程 AI 助手</div>
+        <div class="line-body">
+          <div class="line-time">今天 10:42</div>
+          <div class="line-bubble">📷 [王工地主任 上傳照片] B棟 2F 機電室</div>
+          <div class="line-bubble system">🤖 AI 比對完成：機電設備基礎位置，信心度 58%</div>
+          <div class="line-bubble">⚠️ 信心度低於門檻，已自動建立覆核派工單並通知 @陳工務經理（Slack #a2-qc）</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+/* =========================================================
+   GLOBAL STATE & ROLES
+   ========================================================= */
+let CURRENT_USER = '王工地主任';
+let CURRENT_ROLE = 'contractor'; // 'contractor' | 'supervisor'
+const DEMO_DATE = '2026-07-22';
+
+const PROJECTS = {
+  all:{name:'全部專案'},
+  a2:{name:'大安區 A2 危老重建案'},
+  b7:{name:'信義區 B7 都更案'},
+  c3:{name:'士林區 C3 危老重建案'}
+};
+const PHASES = ['基礎開挖','RC結構體','機電粗胚','外牆帷幕','室內裝修','機電移交','竣工驗收'];
+
+/* =========================================================
+   DEEP DATA MODEL (Based on PDF concepts)
+   ========================================================= */
+const MASTER_DB = [
+  {
+    id:'T-A2-001', project_id:'a2', phase:'基礎開挖', location:'A棟 地下層 B1', 
+    wbs_group:'A棟', type:'Structure', status:'done', due_date:'2026-06-25',
+    assignee:{name:'王工地主任', role:'contractor'}, ifc_guid:'1A$3bTz89_qWlx$P',
+    resources:'PC-200挖土機x2, 傾卸車x5, 勞工8人', risk:'無',
+    predecessors:[], successors:['T-A2-002'],
+    inspection:{ required:true, status:'approved', by:'林監造', time:'2026-06-25 10:30' },
+    audit_log:[
+      '2026/06/20 09:00 [王工地主任] 開始開挖作業',
+      '2026/06/24 15:00 [王工地主任] 提報基礎底定勘驗',
+      '2026/06/25 10:30 [林監造] 現場勘驗通過，核發許可'
+    ],
+    is_issue:false
+  },
+  {
+    id:'T-A2-002', project_id:'a2', phase:'RC結構體', location:'A棟 3F 柱 A1~A5', 
+    wbs_group:'A棟', type:'Structure', status:'delayed', due_date:'2026-07-20',
+    assignee:{name:'王工地主任', role:'contractor'}, ifc_guid:'2B$4cTz12_aBcx$K',
+    resources:'鋼筋工4人, 模板工6人', risk:'鋼筋搭接長度不足，需補強複驗 (AI 預警)',
+    predecessors:['T-A2-001'], successors:['T-A2-003'],
+    inspection:{ required:true, status:'pending' },
+    audit_log:[
+      '2026/07/18 08:00 [王工地主任] 鋼筋綁紮完成，AI 辨識上傳',
+      '2026/07/18 08:05 [系統] AI 判定搭接長度不符規範，觸發異常通報'
+    ],
+    is_issue:true, issue_desc:'柱主筋搭接長度不足', ack_status:'unread', time:'2026/07/18 08:05'
+  },
+  {
+    id:'T-A2-003', project_id:'a2', phase:'機電粗胚', location:'A棟 3F 給排水立管', 
+    wbs_group:'mep-plumb', type:'MEP', status:'inprogress', due_date:'2026-07-25',
+    assignee:{name:'張機電工程師', role:'contractor'}, ifc_guid:'IfcDistributionElement_09x',
+    resources:'水電工3人, PVC管材一批', risk:'需等待結構柱勘驗通過始可封模前施工',
+    predecessors:['T-A2-002'], successors:[],
+    inspection:{ required:false },
+    audit_log:[
+      '2026/07/20 09:00 [張機電工程師] 預埋管料進場檢查'
+    ],
+    is_issue:false
+  },
+  {
+    id:'T-A2-004', project_id:'a2', phase:'機電粗胚', location:'A棟 4F 401 給排水立管', 
+    wbs_group:'mep-plumb', type:'MEP', status:'inprogress', due_date:'2026-07-23',
+    assignee:{name:'張機電工程師', role:'contractor'}, ifc_guid:'IfcDistributionElement_09y',
+    resources:'水電工3人', risk:'無',
+    predecessors:[], successors:[],
+    inspection:{ required:false },
+    audit_log:[
+      '2026/07/18 14:20 [張機電工程師] 立管固定完成'
+    ],
+    is_issue:false
+  },
+  {
+    id:'T-A2-005', project_id:'a2', phase:'機電粗胚', location:'B棟 2F 機電室 設備基礎', 
+    wbs_group:'B棟', type:'MEP', status:'delayed', due_date:'2026-07-19',
+    assignee:{name:'陳工務經理', role:'supervisor'}, ifc_guid:'IfcDistributionElement_09z',
+    resources:'水電工2人', risk:'機電設備基礎位置偏差，AI 信心度偏低需人工複核',
+    predecessors:[], successors:[],
+    inspection:{ required:false },
+    audit_log:[
+      '2026/07/19 11:12 [系統] AI 比對完成：機電設備基礎位置，信心度 58%'
+    ],
+    is_issue:true, issue_desc:'機電設備基礎位置偏差，AI 信心度偏低需人工複核', ack_status:'unread', time:'2026/07/19 11:12'
+  }
+];
+
+const BIM_NODES = {
+  'a2-a3f-301':{project:'a2',building:'A棟',label:'3F — 301 套管配置查驗',photoTime:'2026/07/16 10:07'},
+  'a2-a4f-401':{project:'a2',building:'A棟',label:'4F — 401 給排水立管',photoTime:'2026/07/18 14:20'},
+  'a2-b2f-me':{project:'a2',building:'B棟',label:'2F — 機電室 設備基礎',photoTime:'2026/07/19 11:12'}
+};
+
+const COORD_ROWS = [
+  {item:'給排水立管中心',bim:'12.40, 8.20, 2.85',site:'12.41, 8.19, 2.86',err:'2mm',tag:'pass',label:'合格 (Pass)'},
+  {item:'套管開口位置',bim:'12.60, 7.90, 2.80',site:'12.65, 8.02, 2.80',err:'13mm',tag:'pass',label:'合格 (Pass)'},
+  {item:'消防管線支架',bim:'12.30, 8.40, 2.90',site:'12.30, 8.60, 2.90',err:'20mm',tag:'exceed',label:'超差/異常 (Exceed)'},
+  {item:'弱電配管路徑',bim:'9.10, 4.30, 3.00',site:'9.40, 4.60, 3.00',err:'42mm',tag:'exceed',label:'超差/異常 (Exceed)'}
+];
+
+const state = {project:'a2', scope:'all'};
+let currentBimNode = null;
+let currentProgressFilter = 'all';
+
+/* =========================================================
+   LOGIN LOGIC
+   ========================================================= */
+document.getElementById('login-btn').addEventListener('click', () => {
+  const select = document.getElementById('login-user');
+  CURRENT_USER = select.value;
+  CURRENT_ROLE = select.options[select.selectedIndex].dataset.role;
+  
+  document.getElementById('login-overlay').style.display = 'none';
+  document.getElementById('current-user-display').textContent = `👤 ${CURRENT_USER}`;
+  
+  let roleName = CURRENT_ROLE === 'supervisor' ? '監造單位' : '營造/分包商';
+  document.getElementById('role-display').textContent = `權限: ${roleName}`;
+  
+  // Default to personal scope
+  document.getElementById('scope-select').value = CURRENT_USER;
+  state.scope = CURRENT_USER;
+  refreshAll();
+});
+document.getElementById('logout-btn').addEventListener('click', () => {
+  document.getElementById('login-overlay').style.display = 'flex';
+});
+
+/* =========================================================
+   HELPERS & FILTERS
+   ========================================================= */
+function getFilteredDB(){
+  return MASTER_DB.filter(r=>{
+    if(state.project!=='all' && r.project_id!==state.project) return false;
+    if(state.scope!=='all' && state.scope!=='dept' && r.assignee.name !== state.scope) return false;
+    return true;
+  });
+}
+
+function nowStamp(){
+  const t = new Date();
+  return '2026/07/22 ' + String(t.getHours()).padStart(2,'0') + ':' + String(t.getMinutes()).padStart(2,'0');
+}
+
+function getDaysDiff(dueDateStr) {
+  const today = new Date(DEMO_DATE + 'T00:00:00');
+  const due = new Date(dueDateStr + 'T00:00:00');
+  return Math.ceil((due - today) / (1000 * 60 * 60 * 24));
+}
+
+/* =========================================================
+   TABS & CONTROLS
+   ========================================================= */
+document.querySelectorAll('.tab').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('panel-'+btn.dataset.tab).classList.add('active');
+  });
+});
+
+document.getElementById('project-select').addEventListener('change', e=>{ state.project = e.target.value; refreshAll(); });
+document.getElementById('scope-select').addEventListener('change', e=>{ state.scope = e.target.value; refreshAll(); });
+document.getElementById('wbs-select').addEventListener('change', refreshAll);
+
+function updateScopeSummary(){
+  const wbs = document.getElementById('wbs-select').value;
+  let scopeLabel = state.scope === 'all' ? '全公司' : (state.scope === 'dept' ? '工務部' : state.scope);
+  let wbsLabel = wbs === 'all' ? '全區展開' : wbs;
+  document.getElementById('scope-summary').textContent = `現正檢視：${PROJECTS[state.project].name} · ${wbsLabel} · ${scopeLabel}`;
+}
+
+function refreshAll(){
+  updateScopeSummary();
+  renderBimTree();
+  currentBimNode = null;
+  renderGate();
+  renderProgress(currentProgressFilter);
+  renderIssues();
+}
+
+/* =========================================================
+   MODULE 01 — BIM ALIGNMENT
+   ========================================================= */
+function renderBimTree(){
+  const container = document.getElementById('bim-tree');
+  const entries = Object.entries(BIM_NODES).filter(([id,n]) => state.project==='all' || n.project===state.project);
+  const groups = {};
+  entries.forEach(([id,n])=>{
+    const gk = state.project==='all' ? (PROJECTS[n.project].name+' / '+n.building) : n.building;
+    groups[gk] = groups[gk] || [];
+    groups[gk].push([id,n]);
+  });
+  const groupKeys = Object.keys(groups);
+  container.innerHTML = groupKeys.length ? groupKeys.map(g=>`
+    <div class="tree-group">
+      <div class="tree-h">${g}</div>
+      ${groups[g].map(([id,n])=>`<div class="tree-item" data-node="${id}">${n.label}</div>`).join('')}
+    </div>`).join('') : '<div class="issue-empty">此篩選範圍內尚無空間資料</div>';
+
+  container.querySelectorAll('.tree-item').forEach(el=>{
+    el.addEventListener('click',()=>{
+      container.querySelectorAll('.tree-item').forEach(x=>x.classList.remove('active'));
+      el.classList.add('active');
+      currentBimNode = el.dataset.node;
+      renderGate();
+    });
+  });
+}
+
+function renderGate(){
+  const stage = document.getElementById('bim-stage');
+  const label = document.getElementById('bim-node-label');
+  if(!currentBimNode){
+    label.textContent = '尚未選擇空間';
+    stage.innerHTML = `<div class="upload-gate"><div>請先於左側「STEP 1」選擇空間位置</div></div>`;
+    return;
+  }
+  const n = BIM_NODES[currentBimNode];
+  label.textContent = 'STEP 2 · 已選「'+n.label+'」— 請拍照或上傳照片';
+  stage.innerHTML = `
+    <div class="upload-gate">
+      <div>尚未取得現場照片，請拍照或上傳以進行比對</div>
+      <div class="upload-btns">
+        <button class="upload-btn" data-act="camera">📷 拍照</button>
+        <button class="upload-btn" data-act="file">⬆ 上傳照片</button>
+      </div>
+    </div>`;
+}
+
+document.getElementById('bim-stage').addEventListener('click',(e)=>{
+  if(e.target && e.target.dataset && e.target.dataset.act){
+    renderCompare();
+  }
+});
+
+function renderCompare(){
+  const n = BIM_NODES[currentBimNode];
+  const stage = document.getElementById('bim-stage');
+  const label = document.getElementById('bim-node-label');
+  label.textContent = n.label;
+  
+  stage.innerHTML = `
+    <div class="compare-box" id="compare-box">
+      <div class="layer photo"><span class="tag">現場照片 · ${n.photoTime}</span></div>
+      <div class="layer bim" id="bim-layer" style="display:none;">
+         <div class="wire"></div><span class="tag" style="margin-top:40px;">BIM 模型位置</span>
+      </div>
+    </div>
+    <div style="margin-top:16px; text-align:center;">
+       <button id="overlay-toggle-btn" class="upload-btn">🧩 開啟 BIM 疊合</button>
+    </div>
+  `;
+
+  document.getElementById('overlay-toggle-btn').addEventListener('click', (e) => {
+    const bimLayer = document.getElementById('bim-layer');
+    if(bimLayer.style.display === 'none'){
+      bimLayer.style.display = 'flex';
+      e.target.textContent = '📷 關閉 BIM 疊合 (返回純實景)';
+      e.target.style.background = 'var(--amber)';
+      e.target.style.color = 'var(--ink-deep)';
+    } else {
+      bimLayer.style.display = 'none';
+      e.target.textContent = '🧩 開啟 BIM 疊合';
+      e.target.style.background = 'transparent';
+      e.target.style.color = 'var(--amber)';
+    }
+  });
+}
+
+function renderCoordTable(filter){
+  const body = document.getElementById('coord-body');
+  const rows = COORD_ROWS.filter(r=> filter==='all' || r.tag===filter);
+  body.innerHTML = rows.length ? rows.map(r=>`
+    <tr><td>${r.item}</td><td>${r.bim}</td><td>${r.site}</td><td>${r.err}</td><td class="${r.tag==='pass'?'pass':'fail'}">${r.label}</td></tr>
+  `).join('') : '<tr><td colspan="5" style="text-align:center; color:var(--line-cyan);">此篩選條件下無資料</td></tr>';
+}
+renderCoordTable('all');
+document.querySelectorAll('#coord-filters .chip').forEach(c=>{
+  c.addEventListener('click',()=>{
+    document.querySelectorAll('#coord-filters .chip').forEach(x=>x.classList.remove('active'));
+    c.classList.add('active');
+    renderCoordTable(c.dataset.cf);
+  });
+});
+
+/* =========================================================
+   MODULE 02 — PROGRESS TIMELINE
+   ========================================================= */
+const STATUS_LABEL = {todo:'待辦事項', inprogress:'進行中', done:'已完成', delayed:'異常/延誤'};
+
+function renderProgress(filter){
+  const wbsFilter = document.getElementById('wbs-select').value;
+  let db = MASTER_DB.filter(r => {
+    if(state.project!=='all' && r.project_id!==state.project) return false;
+    if(state.scope!=='all' && state.scope!=='dept' && r.assignee.name !== state.scope) return false;
+    if(filter !== 'all' && r.status !== filter) return false;
+    if(wbsFilter !== 'all' && r.wbs_group !== wbsFilter) return false;
+    return true;
+  });
+
+  const list = document.getElementById('progress-list');
+  if(db.length === 0) {
+    list.innerHTML = '<div class="card" style="text-align:center; color:var(--line-cyan);">此篩選條件下無符合之工項</div>';
+    return;
+  }
+
+  let html = '';
+  db.forEach(r => {
+    const diffDays = getDaysDiff(r.due_date);
+    let dueLabel = r.status === 'done' ? `<span style="color:var(--verified)">已完成</span>` : 
+                   (diffDays < 0 ? `<span style="color:var(--danger)">逾期 ${Math.abs(diffDays)} 天</span>` : `剩餘 ${diffDays} 天`);
+
+    let inspectHtml = '';
+    if(r.inspection && r.inspection.required) {
+      if(r.inspection.status === 'approved') {
+        inspectHtml = `<div class="inspect-box" style="border-color:var(--verified); background:rgba(76,154,107,.05);">
+                         <span style="color:var(--verified);">✓ 法定勘驗已通過 (${r.inspection.by} 於 ${r.inspection.time})</span>
+                       </div>`;
+      } else {
+        const canApprove = CURRENT_ROLE === 'supervisor';
+        inspectHtml = `<div class="inspect-box">
+                         <div><span style="color:var(--amber);">⚠️ 待法定勘驗</span><br><span style="font-size:10px; color:var(--line-cyan);">前置作業完成後需經監造核可</span></div>
+                         <button class="btn-inspect" ${canApprove ? '' : 'disabled'} onclick="event.stopPropagation(); alert('${canApprove ? '勘驗通過！將寫入稽核紀錄。' : '權限不足：僅監造單位可執行法定勘驗簽核。'}')">
+                           ${canApprove ? '✅ 勘驗通過' : '🔒 僅監造可勘驗'}
+                         </button>
+                       </div>`;
+      }
+    }
+
+    html += `
+      <div class="task-row ${r.status}">
+        <div class="task-top">
+          <div>
+            <div class="task-loc">${r.id} · ${r.location}</div>
+            <div class="task-meta">
+              <span>承攬: ${r.assignee.name}</span>
+              <span>📅 預計: ${r.due_date} (${dueLabel})</span>
+            </div>
+            <div class="gps-note">📍 上傳影像附帶 GPS 座標與不可篡改時間戳</div>
+          </div>
+          <span class="t-badge ${r.status}">${STATUS_LABEL[r.status]}</span>
+        </div>
+        <div class="task-detail">
+          <div class="detail-grid">
+            <div class="d-block">
+              <div class="d-title">CPM 依賴關聯 (Dependencies)</div>
+              <div class="d-content">
+                前置: ${r.predecessors.length ? r.predecessors.map(p=>`<span class="dep-tag">${p}</span>`).join('') : '無'}<br>
+                後置: ${r.successors.length ? r.successors.map(p=>`<span class="dep-tag">${p}</span>`).join('') : '無'}
+              </div>
+            </div>
+            <div class="d-block">
+              <div class="d-title">資源與風險 (Resource & Risk)</div>
+              <div class="d-content">
+                資源: ${r.resources}<br>
+                風險: <span style="color:${r.risk==='無'?'inherit':'var(--danger)'}">${r.risk}</span>
+              </div>
+            </div>
+          </div>
+          <div style="margin-top:12px;">
+            <span class="d-title" style="display:inline-block; margin-right:8px;">BIM / IFC 參照:</span>
+            <span class="ifc-ref">IfcGlobalId = ${r.ifc_guid}</span>
+          </div>
+          ${inspectHtml}
+          <div class="audit-log">
+            <div style="color:var(--white-ink); margin-bottom:6px; font-weight:600;">📜 稽核與審計紀錄 (Audit Log)</div>
+            ${r.audit_log.map(log => `<div>${log}</div>`).join('')}
+          </div>
+        </div>
+      </div>`;
+  });
+  
+  list.innerHTML = html;
+  list.querySelectorAll('.task-row').forEach(row=>{
+    row.querySelector('.task-top').addEventListener('click',()=>{
+      row.querySelector('.task-detail').classList.toggle('open');
+    });
+  });
+}
+
+document.querySelectorAll('#progress-filters .chip').forEach(c=>{
+  c.addEventListener('click',()=>{
+    document.querySelectorAll('#progress-filters .chip').forEach(x=>x.classList.remove('active'));
+    c.classList.add('active');
+    currentProgressFilter = c.dataset.pf;
+    renderProgress(currentProgressFilter);
+  });
+});
+
+/* =========================================================
+   MODULE 03 — ISSUES
+   ========================================================= */
+const ACK_LABEL = {unread:'待簽收', processing:'處理中', acknowledged:'已簽收'};
+const PIN_POSITIONS = [{left:'22%',top:'26%'},{left:'70%',top:'32%'},{left:'38%',top:'74%'}];
+
+function renderIssues(){
+  const issues = getFilteredDB().filter(r=>r.is_issue);
+  const pinsEl = document.getElementById('issue-pins');
+  pinsEl.innerHTML = issues.map((iss,i)=>{
+    const p = PIN_POSITIONS[i % PIN_POSITIONS.length];
+    return `<div class="pin" data-idx="${i}" style="position:absolute;left:${p.left};top:${p.top};width:18px;height:18px;border-radius:50%;background:var(--danger);border:2px solid #fff;transform:translate(-50%,-50%);box-shadow:0 0 10px rgba(198,84,58,.8);cursor:pointer;"></div>`;
+  }).join('');
+  pinsEl.querySelectorAll('.pin').forEach(p=>{
+    p.addEventListener('click',()=> showIssueDetail(issues[+p.dataset.idx]));
+  });
+
+  const counts = {unread:0, processing:0, acknowledged:0};
+  issues.forEach(i=> counts[i.ack_status]++);
+  document.getElementById('issue-legend').innerHTML = `
+    <span><i class="dotlg" style="background:var(--danger)"></i>待簽收 (${counts.unread})</span>
+    <span><i class="dotlg" style="background:var(--amber)"></i>處理中 (${counts.processing})</span>
+    <span><i class="dotlg" style="background:var(--verified)"></i>已簽收 (${counts.acknowledged})</span>
+  `;
+  document.getElementById('issue-panel-wrap').innerHTML = '<div class="card issue-empty">點選平面圖上的紅色標記，查看缺失詳情、負責人與通報狀態</div>';
+}
+
+function showIssueDetail(iss){
+  let ackHtml = '';
+  if(iss.ack_status === 'acknowledged'){
+    ackHtml = `<div class="row" style="margin-top:14px; padding:10px; background:rgba(76,154,107,.12); border-radius:4px; justify-content:center; color:var(--verified); font-weight:600;">✓ 已簽收（由 ${iss.assignee.name} 於 ${iss.ackTime||iss.time} 簽認）</div>`;
+  } else {
+    ackHtml = `<button class="ack-btn" id="ack-btn">✅ 簽收辦理 (Acknowledge)</button>`;
+  }
+
+  document.getElementById('issue-panel-wrap').innerHTML = `
+    <div class="card issue-detail">
+      <div class="idnum">${iss.id} · ${PROJECTS[iss.project_id].name}</div>
+      <h4>${iss.issue_desc}</h4>
+      <div class="row"><span>位置</span><span>${iss.location}</span></div>
+      <div class="row"><span>施工序</span><span>${iss.phase}</span></div>
+      <div class="row"><span>簽收狀態</span><span class="ack-badge ${iss.ack_status}">${ACK_LABEL[iss.ack_status]}</span></div>
+      <div class="row"><span>負責人</span><span>${iss.assignee.name}</span></div>
+      <div class="row"><span>通報時間</span><span>${iss.time}</span></div>
+      <div class="contact-row">
+        <a class="contact-chip" href="mailto:${iss.assignee.email}">✉ ${iss.assignee.email}</a>
+        <span class="contact-chip">💬 ${iss.assignee.slack}</span>
+      </div>
+      <div class="row" style="margin-top:8px;"><span>通知已送達</span><span style="color:var(--verified)">Email ✓ · Slack ✓</span></div>
+      ${ackHtml}
+    </div>`;
+    
+  const btn = document.getElementById('ack-btn');
+  if(btn && iss.ack_status!=='acknowledged'){
+    btn.addEventListener('click',()=>{
+      iss.ack_status = 'acknowledged';
+      iss.ackTime = nowStamp();
+      renderIssues();
+      showIssueDetail(iss);
+    });
+  }
+}
+
+/* =========================================================
+   MODULE 04 — OWNER SUMMARY
+   ========================================================= */
+document.querySelectorAll('.ot-btn').forEach(b=>{
+  b.addEventListener('click',()=>{
+    document.querySelectorAll('.ot-btn').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+    const isLine = b.dataset.oview==='line';
+    document.getElementById('owner-web-view').style.display = isLine ? 'none' : 'block';
+    document.getElementById('owner-line-view').style.display = isLine ? 'block' : 'none';
+  });
+});
+document.getElementById('pdf-export-btn').addEventListener('click',()=>{
+  document.querySelectorAll('.ot-btn').forEach(x=>x.classList.remove('active'));
+  document.querySelector('.ot-btn[data-oview="web"]').classList.add('active');
+  document.getElementById('owner-web-view').style.display = 'block';
+  document.getElementById('owner-line-view').style.display = 'none';
+  window.print();
+});
+
+/* =========================================================
+   MODULE 05 — INPUT & AI SIMULATION
+   ========================================================= */
+document.getElementById('gantt-file').addEventListener('change',(e)=>{
+  const f = e.target.files[0];
+  document.getElementById('file-name').textContent = f ? f.name : '尚未選擇檔案';
+});
+document.getElementById('link-bim-btn').addEventListener('click',()=>{
+  document.getElementById('link-note').style.display = 'block';
+});
+document.getElementById('run-sim-btn').addEventListener('click',()=>{
+  const delay = parseInt(document.getElementById('delay-days').value) || 0;
+  const scenario = document.getElementById('scenario-select').value;
+  const scenarioText = {material:'材料到貨延遲', spec:'技術規範變更', weather:'天候影響', other:'其他因素'}[scenario];
+  const base = new Date('2026-11-30T00:00:00');
+  const newDate = new Date(base.getTime() + delay*86400000);
+  const affected = getFilteredDB().filter(r=>r.status!=='done').length;
+  document.getElementById('sim-old-date').textContent = '2026/11/30';
+  document.getElementById('sim-new-date').textContent = newDate.toISOString().slice(0,10).replace(/-/g,'/');
+  document.getElementById('sim-affected').textContent = affected + ' 項（尚未完成工項）';
+  document.getElementById('sim-advice').textContent = '因應「'+scenarioText+'」造成 '+delay+' 天延遲，建議優先調整尚未開始之工項排序，並提前通知相關承商與監造單位覆核受影響工序。';
+  document.getElementById('sim-result').classList.add('show');
+});
+
+</script>
+</body>
+</html>
