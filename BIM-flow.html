@@ -1,0 +1,1268 @@
+<!DOCTYPE html>
+<html lang="zh-Hant" class="antialiased dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BIM-Flow 智慧營建管理與 AR 查驗平台</title>
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Big+Shoulders+Stencil:wght@600;800&display=swap" rel="stylesheet">
+    
+    <!-- Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['IBM Plex Mono', 'monospace'],
+                        display: ['Big Shoulders Stencil', 'sans-serif']
+                    },
+                    colors: {
+                        brand: { 50: '#f0fdfa', 100: '#ccfbf1', 500: '#14b8a6', 600: '#0d9488', 900: '#134e4a' },
+                        surface: { dark: '#0f172a', darker: '#020617' }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Alpine.js, Chart.js & html2canvas -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+
+    <style>
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .dark ::-webkit-scrollbar-thumb { background: #334155; }
+        
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.75);
+            backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+        .dark .glass-panel {
+            background: rgba(30, 41, 59, 0.75);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        
+        .ar-wireframe {
+            background-image: 
+                linear-gradient(45deg, rgba(20, 184, 166, 0.25) 25%, transparent 25%, transparent 50%, rgba(20, 184, 166, 0.25) 50%, rgba(20, 184, 166, 0.25) 75%, transparent 75%, transparent);
+            background-size: 20px 20px;
+            border: 2px dashed #14b8a6;
+        }
+
+        .bg-blueprint {
+            background-image: linear-gradient(rgba(148, 163, 184, 0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(148, 163, 184, 0.1) 1px, transparent 1px);
+            background-size: 28px 28px;
+        }
+        .dark .bg-blueprint {
+            background-image: linear-gradient(rgba(111, 184, 222, 0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(111, 184, 222, 0.05) 1px, transparent 1px);
+        }
+
+        /* LINE Phone Mockup */
+        .line-phone { width: 320px; background: #7494C0; border-radius: 26px; padding: 12px 8px 16px; box-shadow: 0 10px 28px rgba(0,0,0,.25); margin: 0 auto; position: relative; z-index: 1;}
+        .line-header { background: #3E4A89; color: #fff; padding: 10px 14px; border-radius: 10px 10px 0 0; font-size: 13px; font-weight: 600; }
+        .line-body { background: #8DA9CE; padding: 14px 10px; min-height: 220px; border-radius: 0 0 10px 10px; }
+        .line-time { font-size: 10px; color: #eef3ff; text-align: center; margin-bottom: 10px; }
+        .line-bubble { background: #fff; border-radius: 14px; padding: 12px 14px; margin-bottom: 10px; font-size: 12.5px; line-height: 1.6; color: #2f2f2f; max-width: 92%; }
+        .line-bubble.system { background: #06C755; color: #fff; font-weight: 700; max-width: 80%; }
+
+        .radial {
+            width: 96px; height: 96px; border-radius: 9999px; position: relative;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .radial::before {
+            content: ''; position: absolute; inset: 8px; border-radius: 9999px; background: inherit;
+        }
+        .radial-inner { position: relative; z-index: 1; text-align: center; font-family: 'IBM Plex Mono', monospace; }
+        .dark .radial::before { background: #0f172a; }
+        .radial::before { background: #f9fafb; }
+
+        .evidence-frame { background: radial-gradient(circle at 30% 20%, rgba(20,184,166,0.15), transparent 60%), #111827; }
+
+        @keyframes pulse-subtle { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+        .animate-hud { animation: pulse-subtle 2s infinite ease-in-out; }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-900 dark:bg-surface-darker dark:text-gray-100 transition-colors duration-200" 
+      x-data="appData()" :class="{ 'dark': darkMode }">
+
+    <!-- ========================================== -->
+    <!-- LOGIN OVERLAY -->
+    <!-- ========================================== -->
+    <div x-show="!isLoggedIn" class="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/80 backdrop-blur-md transition-opacity">
+        <div class="bg-surface-darker border border-brand-500/30 p-10 rounded-xl shadow-2xl w-full max-w-sm text-center relative overflow-hidden">
+            <div class="absolute inset-0 bg-blueprint opacity-50 pointer-events-none"></div>
+            
+            <div class="relative z-10">
+                <div class="w-16 h-16 rounded bg-brand-500 mx-auto flex items-center justify-center text-white font-bold mb-4 font-display text-3xl">B</div>
+                <h1 class="text-2xl font-display tracking-wide text-white mb-2">BIM-Flow 營建平台</h1>
+                <p class="text-brand-400 text-xs font-mono mb-8">智慧施工·進度履歷·AR現場查驗</p>
+                
+                <div class="text-left mb-6">
+                    <label class="text-xs text-gray-400 font-mono mb-2 block">選擇登入角色視角</label>
+                    <select x-model="loginRole" class="w-full bg-gray-800 text-white border border-gray-600 rounded p-3 font-mono text-sm outline-none focus:border-brand-500 transition-colors cursor-pointer">
+                        <option value="supervisor">林監造 (監造單位 / 工務主管)</option>
+                        <option value="contractor">王工地主任 (營造廠 / 現場工程師)</option>
+                        <option value="owner">陳理事長 (地主 / 更新會代表)</option>
+                    </select>
+                </div>
+                
+                <button @click="doLogin" class="w-full bg-brand-500 hover:bg-brand-600 text-white font-bold py-3 rounded font-mono transition-colors shadow-[0_0_15px_rgba(20,184,166,0.4)]">
+                    登入系統
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- MAIN APPLICATION -->
+    <!-- ========================================== -->
+    <div x-show="isLoggedIn" style="display: none;" class="flex h-screen overflow-hidden">
+        
+        <!-- Sidebar Navigation -->
+        <aside class="flex-shrink-0 flex flex-col border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-surface-dark transition-all duration-300 z-20"
+               :class="{'w-64': sidebarOpen, 'w-20': !sidebarOpen}">
+            
+            <div class="h-16 flex items-center px-4 border-b border-gray-200 dark:border-gray-800 justify-between">
+                <div class="flex items-center gap-3 overflow-hidden cursor-pointer" @click="activeTab = 'projects'">
+                    <div class="w-8 h-8 rounded bg-brand-500 flex items-center justify-center text-white font-bold shrink-0 font-display text-xl">B</div>
+                    <span class="font-bold text-lg tracking-tight whitespace-nowrap font-display text-brand-600 dark:text-brand-50" x-show="sidebarOpen">BIM-Flow</span>
+                </div>
+                <button @click="sidebarOpen = !sidebarOpen" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                    <i class="fa-solid fa-bars"></i>
+                </button>
+            </div>
+
+            <!-- Navigation Items -->
+            <nav class="flex-1 overflow-y-auto py-4 px-3 space-y-1 custom-scrollbar">
+                <template x-for="item in navItems" :key="item.id">
+                    <a href="#" x-show="item.roles.includes(role)" 
+                       @click.prevent="if(item.isMain || selectedProject) { activeTab = item.id; if(activeTab === 'projects' && role === 'supervisor') setTimeout(()=>initChart(),100); }" 
+                       class="flex items-center gap-3 py-2.5 rounded-lg transition-colors border border-transparent"
+                       :class="[
+                           item.isMain ? 'px-3 mb-2 font-bold' : 'ml-4 px-3 text-sm mb-1',
+                           (!item.isMain && !selectedProject) ? 'opacity-50 cursor-not-allowed text-gray-500' : 
+                           (activeTab === item.id 
+                               ? 'bg-brand-50 text-brand-600 dark:bg-brand-900/30 dark:text-brand-500 border-brand-200 dark:border-brand-800/50' 
+                               : 'text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800')
+                       ]">
+                        <i class="w-5 text-center fa-solid text-[15px]" :class="item.icon"></i>
+                        <span x-show="sidebarOpen" class="flex-1 whitespace-nowrap" x-text="item.label"></span>
+                        <template x-if="item.id === 'issues' && sidebarOpen && selectedProject">
+                            <span class="ml-auto bg-red-500 text-white text-xs py-0.5 px-2 rounded-full font-mono" x-text="pendingIssuesCount"></span>
+                        </template>
+                    </a>
+                </template>
+            </nav>
+
+            <div class="p-4 border-t border-gray-200 dark:border-gray-800">
+                <div class="flex items-center gap-3">
+                    <img :src="roleAvatar" class="w-8 h-8 rounded-full border border-gray-300 dark:border-gray-600">
+                    <div class="overflow-hidden" x-show="sidebarOpen">
+                        <p class="text-sm font-medium truncate" x-text="roleName"></p>
+                        <p class="text-xs text-brand-500 dark:text-brand-400 truncate" x-text="roleTitle"></p>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content Wrapper -->
+        <main class="flex-1 flex flex-col relative overflow-hidden bg-blueprint">
+            
+            <header class="h-16 glass-panel border-b border-gray-200 dark:border-gray-800 z-10 flex items-center justify-between px-6 sticky top-0">
+                <div class="flex items-center text-sm font-medium text-gray-500 dark:text-gray-400 font-mono">
+                    <button @click="activeTab = 'projects'; if(role === 'supervisor') setTimeout(()=>initChart(),100);" class="text-brand-600 dark:text-brand-400 hover:text-brand-700 transition-colors flex items-center">
+                        <i class="fa-solid fa-house mr-2"></i>
+                        <span x-text="selectedProject ? selectedProject.name : '選擇專案'"></span>
+                    </button>
+                    <i class="fa-solid fa-chevron-right text-[10px] mx-3"></i>
+                    <span class="text-gray-900 dark:text-gray-100 uppercase tracking-wide" x-text="currentTabLabel"></span>
+                </div>
+
+                <div class="flex items-center gap-5">
+                    <div class="flex items-center gap-2 text-sm border-r border-gray-300 dark:border-gray-700 pr-5">
+                        <span class="text-gray-500 dark:text-gray-400 font-mono text-xs hidden md:inline">視角切換:</span>
+                        <select x-model="role" @change="handleRoleSwitch" class="bg-white dark:bg-surface-dark border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-sm focus:ring-brand-500 outline-none text-gray-800 dark:text-gray-200 cursor-pointer font-mono">
+                            <option value="supervisor">監造 / 主管視角</option>
+                            <option value="contractor">營造 / 現場視角</option>
+                            <option value="owner">地主 / 更新會視角</option>
+                        </select>
+                    </div>
+                    
+                    <button @click="darkMode = !darkMode" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors">
+                        <i class="fa-solid fa-moon text-lg" x-show="!darkMode"></i>
+                        <i class="fa-solid fa-sun text-lg" x-show="darkMode"></i>
+                    </button>
+                    
+                    <button @click="doLogout" class="text-red-500 hover:text-red-600 font-mono text-sm transition-colors ml-2">
+                        登出
+                    </button>
+                </div>
+            </header>
+
+            <div class="flex-1 overflow-y-auto p-6 lg:p-8 custom-scrollbar relative">
+                
+                <!-- ============================================= -->
+                <!-- 00. HOME TAB -->
+                <!-- ============================================= -->
+                <div x-show="activeTab === 'projects'" x-transition.opacity>
+                    <div class="mb-6">
+                        <h1 class="text-3xl font-bold font-display tracking-wide">專案總覽 <span class="text-brand-500">HOME</span></h1>
+                        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1" 
+                           x-text="role === 'supervisor' ? '檢視專案狀態、動態 S-Curve 進度與待複驗異常事項。' : (role === 'contractor' ? '跨專案總覽：專注於今日需施作工項與待處理解決之缺失。' : '工程透明度報告：檢視查驗覆蓋率與現場驗證憑證。')"></p>
+                    </div>
+                    
+                    <!-- ---- SUPERVISOR VIEW ---- -->
+                    <div x-show="role === 'supervisor'">
+                        <!-- Project Selector Cards -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+                            <template x-for="proj in projectList" :key="proj.id">
+                                <div class="glass-panel p-5 rounded-xl hover:shadow-lg transition-all border-t-4"
+                                     :class="selectedProject && selectedProject.id === proj.id ? 'border-t-brand-500 shadow-md scale-[1.02]' : 'border-t-gray-300 dark:border-t-gray-600'">
+                                    
+                                    <div class="cursor-pointer" @click="enterProject(proj)">
+                                        <div class="flex justify-between items-start mb-3">
+                                            <span class="px-2 py-1 text-[10px] font-mono rounded bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300" x-text="proj.type"></span>
+                                            <span class="px-2 py-1 text-[10px] font-mono rounded font-bold"
+                                                  :class="proj.status === '施工中' ? 'bg-brand-100 text-brand-700 dark:bg-brand-900/50 dark:text-brand-400' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-400'"
+                                                  x-text="proj.status"></span>
+                                        </div>
+                                        <h3 class="text-lg font-bold mb-1 text-gray-900 dark:text-white truncate" x-text="proj.name"></h3>
+                                        <p class="text-xs text-gray-500 font-mono mb-4"><i class="fa-solid fa-map-pin mr-1"></i><span x-text="proj.location"></span></p>
+                                        
+                                        <div class="space-y-1 mb-4">
+                                            <div class="flex justify-between text-xs font-mono">
+                                                <span class="text-gray-500">整體進度</span>
+                                                <span class="font-bold text-brand-600 dark:text-brand-400" x-text="proj.progress + '%'"></span>
+                                            </div>
+                                            <div class="h-2 w-full bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                                                <div class="h-full bg-brand-500 rounded-full transition-all duration-1000" :style="`width: ${proj.progress}%`"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="pt-3 border-t border-gray-200 dark:border-gray-700 flex gap-2">
+                                        <button @click="enterWBS(proj)" class="flex-1 py-1.5 rounded font-mono text-xs transition-colors bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300">
+                                            <i class="fa-solid fa-bars-progress mr-1"></i> WBS 追蹤
+                                        </button>
+                                        <button @click="enterEvidence(proj)" class="flex-1 py-1.5 rounded font-mono text-xs transition-colors bg-brand-50 hover:bg-brand-100 dark:bg-brand-900/30 dark:hover:bg-brand-900/50 text-brand-600 dark:text-brand-400 border border-brand-200 dark:border-brand-800">
+                                            <i class="fa-solid fa-camera-retro mr-1"></i> BIM 查驗
+                                        </button>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+
+                        <!-- Supervisor Dashboard Area -->
+                        <div x-show="selectedProject" x-transition.opacity class="border-t-2 border-dashed border-gray-300 dark:border-gray-700 pt-8">
+                            <h2 class="text-2xl font-bold font-display mb-5 flex items-center justify-between">
+                                <span><i class="fa-solid fa-chart-pie mr-2 text-brand-500"></i><span x-text="selectedProject ? selectedProject.name + ' - 儀表板' : ''"></span></span>
+                                <span class="text-xs font-mono text-gray-400 font-normal">提示：點擊 S-Curve 或異常卡片可直接檢視細項</span>
+                            </h2>
+                            
+                            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                                <!-- Widget 1: Progress -->
+                                <div class="glass-panel p-5 rounded-xl border-l-4 border-l-brand-500 shadow-sm relative overflow-hidden">
+                                    <p class="text-sm font-mono text-gray-500 dark:text-gray-400">整體施工進度</p>
+                                    <div class="mt-2 flex items-baseline gap-2">
+                                        <h2 class="text-3xl font-bold font-display" x-text="selectedProject ? selectedProject.progress + '%' : '0%'"></h2>
+                                        <span class="text-xs font-semibold text-brand-600 bg-brand-100 dark:bg-brand-900/40 dark:text-brand-400 px-2 py-0.5 rounded-full">+2% 本週</span>
+                                    </div>
+                                </div>
+
+                                <!-- Widget 2: SPI -->
+                                <div class="glass-panel p-5 rounded-xl border-l-4 border-l-amber-500 shadow-sm">
+                                    <p class="text-sm font-mono text-gray-500 dark:text-gray-400">進度績效 (SPI)</p>
+                                    <div class="mt-2 flex items-baseline gap-2">
+                                        <h2 class="text-3xl font-bold font-display text-amber-600 dark:text-amber-500">0.94</h2>
+                                        <span class="text-xs text-gray-500 font-mono">微幅落後</span>
+                                    </div>
+                                </div>
+
+                                <!-- Widget 3: CLICKABLE Pending Review Abnormalities -->
+                                <div @click="jumpToIssues('pending_review')" 
+                                     class="glass-panel p-5 rounded-xl border-l-4 border-l-red-500 shadow-sm cursor-pointer hover:scale-[1.03] hover:shadow-md transition-all group relative">
+                                    <div class="flex justify-between items-start">
+                                        <p class="text-sm font-mono text-gray-500 dark:text-gray-400 group-hover:text-red-500 transition-colors">待複驗異常 (點擊跳轉) 👉</p>
+                                        <i class="fa-solid fa-arrow-right-long text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"></i>
+                                    </div>
+                                    <div class="mt-2 flex items-baseline gap-2">
+                                        <h2 class="text-3xl font-bold font-display text-red-500" x-text="pendingReviewCount"></h2>
+                                        <span class="text-xs text-gray-500 font-mono">件待處理</span>
+                                    </div>
+                                </div>
+
+                                <!-- Widget 4: Inspection Coverage (Note: Landowner trust index is REMOVED from Supervisor view) -->
+                                <div class="glass-panel p-5 rounded-xl border-l-4 border-l-blue-500 shadow-sm">
+                                    <p class="text-sm font-mono text-gray-500 dark:text-gray-400">隱蔽工程查驗覆蓋率</p>
+                                    <div class="mt-2 flex items-baseline gap-2">
+                                        <h2 class="text-3xl font-bold font-display text-blue-500" x-text="selectedProject ? selectedProject.inspectionCoverage + '%' : '0%'"></h2>
+                                        <span class="text-xs text-gray-500 font-mono">Verified</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Interactive S-Curve Chart -->
+                            <div class="glass-panel rounded-xl shadow-sm p-6 flex flex-col">
+                                <div class="flex justify-between items-center mb-4">
+                                    <h3 class="font-bold font-mono">專案排程與 S-Curve 對比 <span class="text-xs font-normal text-brand-500 ml-2"><i class="fa-solid fa-hand-pointer mr-1"></i>點擊圖表時間點可檢視當月【應完成 vs 未完成】細項</span></h3>
+                                </div>
+                                <div class="relative flex-1 w-full min-h-[300px]">
+                                    <canvas id="scurveChart" class="cursor-pointer"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ---- CONTRACTOR VIEW ---- -->
+                    <div x-show="role === 'contractor'">
+                        <div class="glass-panel rounded-xl p-6 lg:p-8">
+                            <h3 class="font-bold font-mono mb-6 text-brand-600 dark:text-brand-400 text-lg">
+                                <i class="fa-solid fa-list-check mr-2"></i>今日待辦與派工清單 (My Tasks)
+                            </h3>
+                            <div class="space-y-4">
+                                <template x-for="(item, index) in allContractorTasks" :key="index">
+                                    <div class="flex flex-col md:flex-row md:items-center justify-between p-5 bg-white dark:bg-surface-dark border-l-4 rounded-r-lg shadow-sm hover:shadow-md transition-shadow gap-4"
+                                         :class="item.task.status === 'delayed' ? 'border-l-red-500' : 'border-l-brand-500'">
+                                        <div>
+                                            <div class="font-bold text-xs px-2 py-0.5 rounded text-white inline-block mb-2" 
+                                                 :class="item.task.status === 'delayed' ? 'bg-red-500' : 'bg-brand-500'" 
+                                                 x-text="item.proj.name"></div>
+                                            <div class="font-bold text-gray-900 dark:text-gray-100 text-lg mb-1" x-text="item.building + ' / ' + item.storey + ' / ' + item.space + ' · ' + item.task.name"></div>
+                                            <div class="font-mono text-sm" :class="item.task.status === 'delayed' ? 'text-red-500 font-bold' : 'text-gray-500'" x-text="'📅 預計: ' + item.task.startDate + ' ~ ' + item.task.endDate"></div>
+                                        </div>
+                                        <div class="flex gap-2">
+                                            <button @click="enterWBS(item.proj)" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 font-mono text-sm rounded transition-colors whitespace-nowrap">WBS</button>
+                                            <button @click="enterEvidence(item.proj)" class="px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white font-mono text-sm rounded transition-colors whitespace-nowrap">前往查驗存證 👉</button>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ---- OWNER VIEW ---- -->
+                    <div x-show="role === 'owner'">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                            <template x-for="proj in projectList" :key="'own-' + proj.id">
+                                <div class="glass-panel p-5 rounded-xl hover:shadow-lg transition-all border-t-4 cursor-pointer"
+                                     :class="selectedProject && selectedProject.id === proj.id ? 'border-t-brand-500 shadow-md scale-[1.02]' : 'border-t-gray-300 dark:border-t-gray-600'"
+                                     @click="enterProject(proj)">
+                                    <h3 class="text-lg font-bold mb-1 text-gray-900 dark:text-white truncate" x-text="proj.name"></h3>
+                                    <p class="text-xs text-gray-500 font-mono mb-4"><i class="fa-solid fa-map-pin mr-1"></i><span x-text="proj.location"></span></p>
+                                    <div class="flex justify-around">
+                                        <div class="text-center">
+                                            <div class="text-2xl font-bold text-blue-500 font-display" x-text="proj.inspectionCoverage + '%'"></div>
+                                            <div class="text-[10px] text-gray-500 font-mono">查驗覆蓋率</div>
+                                        </div>
+                                        <div class="text-center">
+                                            <div class="text-2xl font-bold text-purple-500 font-display" x-text="proj.ownerTrustIndex + '%'"></div>
+                                            <div class="text-[10px] text-gray-500 font-mono">地主信任指標</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ============================================= -->
+                <!-- 01. REVAMPED WBS PROGRESS TRACKING TAB -->
+                <!-- ============================================= -->
+                <div x-show="activeTab === 'progress'" x-transition.opacity style="display: none;">
+                    <div class="mb-6">
+                        <h1 class="text-3xl font-bold font-display tracking-wide">WBS 空間與工序追蹤</h1>
+                        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1" x-text="selectedProject ? '專案：' + selectedProject.name : ''"></p>
+                    </div>
+
+                    <!-- Step-by-Step Hierarchical Navigation Flow -->
+                    <div class="glass-panel p-5 rounded-xl mb-6 space-y-4">
+                        
+                        <!-- Step 1 & 2: Building & Storey Selection -->
+                        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                            <div>
+                                <label class="text-xs font-mono text-gray-500 mb-1 block">STEP 1 · 選擇棟別</label>
+                                <select x-model="wbsBuilding" @change="wbsStorey = ''; wbsSpace = '';" class="w-full bg-white dark:bg-surface-dark border border-gray-300 dark:border-gray-600 rounded p-2 font-mono text-sm outline-none focus:border-brand-500">
+                                    <option value="">— 請選擇棟別 —</option>
+                                    <template x-for="b in (selectedProject ? selectedProject.buildings : [])" :key="b.id">
+                                        <option :value="b.id" x-text="b.name"></option>
+                                    </template>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label class="text-xs font-mono text-gray-500 mb-1 block">STEP 2 · 選擇樓層</label>
+                                <select x-model="wbsStorey" @change="wbsSpace = ''" :disabled="!wbsBuilding" class="w-full bg-white dark:bg-surface-dark border border-gray-300 dark:border-gray-600 rounded p-2 font-mono text-sm outline-none focus:border-brand-500 disabled:opacity-40">
+                                    <option value="">— 請選擇樓層 —</option>
+                                    <template x-for="s in wbsStoreyOptions" :key="s.id">
+                                        <option :value="s.id" x-text="s.name"></option>
+                                    </template>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label class="text-xs font-mono text-gray-500 mb-1 block">STEP 3-A · 三大系統分類</label>
+                                <select x-model="wbsCategory" class="w-full bg-white dark:bg-surface-dark border border-gray-300 dark:border-gray-600 rounded p-2 font-mono text-sm outline-none focus:border-brand-500">
+                                    <option value="all">全選系統</option>
+                                    <option value="結構">結構 (Structure)</option>
+                                    <option value="機電">機電 (MEP)</option>
+                                    <option value="管線系統">管線系統 (Piping)</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label class="text-xs font-mono text-gray-500 mb-1 block">STEP 3-B · 台灣標準 12 大工序階段</label>
+                                <select x-model="wbsStage" class="w-full bg-white dark:bg-surface-dark border border-gray-300 dark:border-gray-600 rounded p-2 font-mono text-sm outline-none focus:border-brand-500">
+                                    <option value="all">全選工序階段 (1~12)</option>
+                                    <template x-for="st in taiwanStages" :key="st.id">
+                                        <option :value="st.id" x-text="st.name"></option>
+                                    </template>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Step 4: Interactive 2D Floor Plan Space Selection -->
+                        <div x-show="wbsBuilding && wbsStorey" x-transition class="pt-4 border-t border-gray-200 dark:border-gray-700">
+                            <div class="flex justify-between items-center mb-2">
+                                <label class="text-xs font-mono text-gray-500 block">STEP 4 · 選擇空間/區域 (可點擊下方 2D 平面圖選擇)</label>
+                                <span class="text-xs font-mono text-brand-500">目前選擇空間：<b x-text="wbsSpaceName || '全部區域'"></b></span>
+                            </div>
+
+                            <!-- Interactive 2D Floor Plan Container -->
+                            <div class="bg-gray-800 rounded-lg h-44 border border-gray-700 relative overflow-hidden flex items-center justify-center p-2">
+                                <svg viewBox="0 0 600 200" width="100%" height="100%" class="opacity-40">
+                                    <rect x="20" y="20" width="560" height="160" fill="none" stroke="#14b8a6" stroke-width="2"/>
+                                    <line x1="200" y1="20" x2="200" y2="180" stroke="#14b8a6" stroke-width="1"/>
+                                    <line x1="400" y1="20" x2="400" y2="180" stroke="#14b8a6" stroke-width="1"/>
+                                </svg>
+
+                                <!-- Clickable Spatial Zones on Floor Plan -->
+                                <div class="absolute inset-0 grid grid-cols-3 p-4 gap-4 pointer-events-none">
+                                    <template x-for="sp in wbsSpaceOptions" :key="sp.id">
+                                        <button @click="wbsSpace = sp.id" 
+                                                class="pointer-events-auto border-2 rounded-lg flex flex-col items-center justify-center transition-all font-mono text-xs font-bold p-2 backdrop-blur-sm"
+                                                :class="wbsSpace === sp.id ? 'border-brand-400 bg-brand-500/30 text-white shadow-lg scale-[1.02]' : 'border-gray-600 bg-gray-900/60 text-gray-300 hover:border-brand-500'">
+                                            <i class="fa-solid fa-cube mb-1"></i>
+                                            <span x-text="sp.name"></span>
+                                        </button>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Step 5: Inspection System Items List -->
+                    <div x-show="!wbsBuilding || !wbsStorey" class="glass-panel p-10 rounded-xl text-center text-gray-500 font-mono text-sm">
+                        <i class="fa-solid fa-layer-group text-3xl mb-3 opacity-40"></i><br>
+                        請先選擇「棟別」與「樓層」，系統將自動展現該空間之 12 大工序與細項列表。
+                    </div>
+
+                    <div x-show="wbsBuilding && wbsStorey" class="space-y-4">
+                        <template x-for="space in filteredWbsSpaces" :key="space.id">
+                            <div class="glass-panel p-5 rounded-xl">
+                                <h4 class="font-bold font-mono text-sm mb-3 text-brand-600 dark:text-brand-400 flex items-center justify-between">
+                                    <span><i class="fa-solid fa-cube mr-2"></i>空間：<span x-text="space.name"></span></span>
+                                    <span class="text-xs font-normal text-gray-400" x-text="space.tasks.length + ' 個工項'"></span>
+                                </h4>
+
+                                <div class="space-y-3">
+                                    <template x-for="task in space.tasks" :key="task.id">
+                                        <div class="p-4 rounded-lg border-l-4 bg-white/60 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700 flex flex-col md:flex-row md:items-center justify-between gap-4"
+                                             :class="task.status === 'delayed' ? 'border-l-red-500' : (task.status === 'completed' ? 'border-l-brand-500' : 'border-l-amber-500')">
+                                            
+                                            <div class="flex-1">
+                                                <div class="flex items-center gap-2 mb-1">
+                                                    <span class="px-2 py-0.5 text-[10px] font-mono rounded bg-brand-100 dark:bg-brand-900/40 text-brand-700 dark:text-brand-300" x-text="task.system"></span>
+                                                    <span class="px-2 py-0.5 text-[10px] font-mono rounded bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300" x-text="'階段 ' + task.stageId"></span>
+                                                    <h5 class="font-bold text-base text-gray-900 dark:text-gray-100" x-text="task.name"></h5>
+                                                </div>
+                                                <p class="text-xs text-gray-500 font-mono mb-2" x-text="task.desc"></p>
+                                                <div class="text-[11px] font-mono text-gray-400 flex gap-4">
+                                                    <span>📅 基準工期: <span x-text="task.startDate + ' ~ ' + task.endDate"></span></span>
+                                                    <span>責任單位: <span x-text="task.responsible"></span></span>
+                                                </div>
+                                            </div>
+
+                                            <div class="flex items-center gap-3 shrink-0">
+                                                <span class="px-2.5 py-1 rounded text-xs font-bold font-mono"
+                                                      :class="task.status === 'delayed' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' : (task.status === 'completed' ? 'bg-brand-100 text-brand-700 dark:bg-brand-900/30 dark:text-brand-400' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-500')"
+                                                      x-text="task.status === 'delayed' ? '滯後' : (task.status === 'completed' ? '已完成' : '進行中')"></span>
+                                                
+                                                <!-- Direct Link Button to BIM Evidence Verification -->
+                                                <button @click="jumpToBIMEvidence(task)" 
+                                                        class="px-3 py-1.5 bg-brand-500 hover:bg-brand-600 text-white font-mono text-xs rounded shadow transition-colors flex items-center gap-1">
+                                                    <i class="fa-solid fa-link"></i> 連結至 BIM 證據查驗
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- ============================================= -->
+                <!-- 02. ENHANCED BIM & AR EVIDENCE VERIFICATION TAB -->
+                <!-- ============================================= -->
+                <div x-show="activeTab === 'bim'" x-transition.opacity style="display: none;">
+                    <div class="mb-6 flex justify-between items-end flex-wrap gap-4">
+                        <div>
+                            <h1 class="text-3xl font-bold font-display tracking-wide">BIM 證據查驗與 AR 疊合對比</h1>
+                            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1" x-text="selectedProject ? '專案：' + selectedProject.name : ''"></p>
+                        </div>
+                        
+                        <!-- Toggle Mode Switch -->
+                        <div class="flex bg-gray-200 dark:bg-gray-800 p-1 rounded-lg font-mono text-xs">
+                            <button @click="arWalkthroughMode = false" 
+                                    class="px-4 py-2 rounded-md transition-all font-bold"
+                                    :class="!arWalkthroughMode ? 'bg-brand-500 text-white shadow' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'">
+                                <i class="fa-solid fa-columns mr-1"></i> 雙畫面比對模式
+                            </button>
+                            <button @click="arWalkthroughMode = true" 
+                                    class="px-4 py-2 rounded-md transition-all font-bold"
+                                    :class="arWalkthroughMode ? 'bg-brand-500 text-white shadow' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'">
+                                <i class="fa-solid fa-vr-cardboard mr-1"></i> 現場 AR 實地走查模式 (HUD)
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- DUAL EVIDENCE DISPLAY MODE -->
+                    <div x-show="!arWalkthroughMode">
+                        <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                            <!-- Left Task Picker -->
+                            <div class="glass-panel p-4 rounded-xl lg:col-span-1 border-t-4 border-t-brand-500">
+                                <p class="text-xs font-mono font-bold text-gray-400 mb-3">選擇查驗工項 (BIM GUID 綁定)</p>
+                                <div class="space-y-1 font-mono text-sm max-h-[450px] overflow-y-auto custom-scrollbar">
+                                    <template x-for="opt in evidenceTaskOptions" :key="opt.task.id">
+                                        <div @click="selectedEvidenceTaskId = opt.task.id" 
+                                             :class="selectedEvidenceTaskId === opt.task.id ? 'bg-brand-50 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400 border-l-2 border-brand-500' : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 border-l-2 border-transparent'" 
+                                             class="px-3 py-2 cursor-pointer transition-colors">
+                                            <div class="text-[10px] opacity-70" x-text="opt.building + ' / ' + opt.storey + ' / ' + opt.space"></div>
+                                            <div class="font-bold" x-text="opt.task.name"></div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+
+                            <!-- Right Side-by-Side Dual Display -->
+                            <div class="glass-panel p-4 rounded-xl lg:col-span-3">
+                                <template x-if="selectedEvidenceTask">
+                                    <div>
+                                        <div class="flex justify-between items-center mb-3 flex-wrap gap-2">
+                                            <span class="text-xs font-mono font-bold text-gray-400" x-text="'查驗工項：' + selectedEvidenceTask.name"></span>
+                                            <span class="text-xs font-mono px-2 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-gray-500">BIM GUID: <span x-text="selectedEvidenceTask.bimGuid"></span></span>
+                                        </div>
+
+                                        <!-- Side-by-Side Comparison Grid -->
+                                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <!-- Panel A: Real On-Site Verification Photo -->
+                                            <div class="relative h-72 rounded-lg overflow-hidden border border-gray-300 dark:border-gray-700 evidence-frame">
+                                                <img src="https://images.unsplash.com/photo-1541888081-3e0e71ab870c?q=80&w=800&auto=format&fit=crop" class="w-full h-full object-cover">
+                                                <div class="absolute top-2 left-2 font-mono text-[10px] bg-black/70 text-white px-2 py-1 rounded backdrop-blur">
+                                                    📷 現場照片 (時間戳記: <span x-text="nowTimestamp"></span>)
+                                                </div>
+                                                <div class="absolute bottom-2 left-2 font-mono text-[10px] bg-brand-600/80 text-white px-2 py-1 rounded backdrop-blur">
+                                                    <i class="fa-solid fa-location-dot mr-1"></i><span x-text="currentEvidenceSpaceTag"></span>
+                                                </div>
+                                            </div>
+
+                                            <!-- Panel B: AR BIM System Overlay View (Highlighting Discrepancies) -->
+                                            <div class="relative h-72 rounded-lg overflow-hidden border border-brand-500 ar-wireframe bg-gray-900 flex items-center justify-center">
+                                                <img src="https://images.unsplash.com/photo-1541888081-3e0e71ab870c?q=80&w=800&auto=format&fit=crop" class="w-full h-full object-cover opacity-40">
+                                                
+                                                <!-- Simulated AR Discrepancy Overlay Box -->
+                                                <div class="absolute border-2 border-red-500 bg-red-500/20 rounded p-2 text-center animate-pulse" style="width: 60%; height: 50%;">
+                                                    <span class="bg-red-500 text-white text-[10px] font-mono px-1.5 py-0.5 rounded absolute -top-3 left-2 font-bold">⚠️ 偵測到開孔/管線偏位 18mm</span>
+                                                </div>
+
+                                                <div class="absolute top-2 left-2 font-mono text-[10px] bg-brand-600/90 text-white px-2 py-1 rounded backdrop-blur font-bold">
+                                                    👓 AR BIM 模型疊合圖層 (對比中)
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="mt-4 flex flex-wrap gap-3 justify-center">
+                                            <button @click="capturePhoto()" class="px-5 py-2 text-sm font-mono rounded text-white bg-brand-500 hover:bg-brand-600 font-bold shadow">
+                                                <i class="fa-solid fa-camera mr-1"></i> 拍照 / 上傳存證
+                                            </button>
+                                            <button @click="createIssue()" class="px-4 py-2 text-sm font-mono rounded border border-red-500 text-red-500 hover:bg-red-500 hover:text-white transition-colors">
+                                                <i class="fa-regular fa-flag mr-1"></i> 標記為異常缺失
+                                            </button>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ON-SITE AR WALKTHROUGH MODE PLACEHOLDER (HUD) -->
+                    <div x-show="arWalkthroughMode" x-transition class="glass-panel p-6 rounded-xl relative overflow-hidden border-2 border-brand-500 bg-gray-950">
+                        <!-- Simulated Camera Viewfinder -->
+                        <div class="relative h-[480px] rounded-lg overflow-hidden bg-gray-900 flex items-center justify-center">
+                            <img src="https://images.unsplash.com/photo-1541888081-3e0e71ab870c?q=80&w=800&auto=format&fit=crop" class="absolute inset-0 w-full h-full object-cover opacity-50">
+                            
+                            <!-- HUD Wireframe Grid -->
+                            <div class="absolute inset-0 ar-wireframe opacity-60 pointer-events-none"></div>
+
+                            <!-- Real-time Crosshair HUD -->
+                            <div class="relative z-10 w-48 h-48 border border-brand-400/50 rounded-full flex items-center justify-center animate-hud">
+                                <div class="w-2 h-2 bg-brand-400 rounded-full"></div>
+                                <div class="absolute -top-6 text-[10px] font-mono text-brand-400 font-bold">SLAM 座標追蹤鎖定中</div>
+                            </div>
+
+                            <!-- Live HUD Overlays & Spatial Info -->
+                            <div class="absolute top-4 left-4 font-mono text-xs bg-black/80 text-brand-400 border border-brand-500/50 p-3 rounded backdrop-blur space-y-1">
+                                <div><b>📍 位置:</b> <span x-text="currentEvidenceSpaceTag"></span></div>
+                                <div><b>🌐 座標:</b> X: +12.42m | Y: -4.18m | Z: +9.20m</div>
+                                <div><b>🎯 定位精度:</b> ±3.5mm (激光高精度模組)</div>
+                            </div>
+
+                            <!-- Discrepancy Tag Indicator -->
+                            <div class="absolute bottom-16 right-6 font-mono text-xs bg-red-950/90 border border-red-500 text-red-200 p-3 rounded backdrop-blur max-w-xs shadow-lg">
+                                <div class="font-bold text-red-400 mb-1"><i class="fa-solid fa-triangle-exclamation mr-1"></i> 實時 AI 偏差預警</div>
+                                <div>圖層：給排水管線 MEP-PL-03</div>
+                                <div class="text-[11px] text-red-300">現場與 BIM 模型比對偏差 22mm (超差)</div>
+                            </div>
+
+                            <!-- Instant Action Bar inside AR HUD -->
+                            <div class="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex gap-4 z-20">
+                                <button @click="capturePhoto()" class="px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white font-mono text-xs font-bold rounded-full shadow-lg">
+                                    <i class="fa-solid fa-camera mr-1"></i> 拍攝存證
+                                </button>
+                                <button @click="createIssue()" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-mono text-xs font-bold rounded-full shadow-lg">
+                                    <i class="fa-solid fa-flag mr-1"></i> 立即標記異常 (Tag Issue)
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ============================================= -->
+                <!-- 03. CLOSED-LOOP DEFECT LIFECYCLE TAB -->
+                <!-- ============================================= -->
+                <div x-show="activeTab === 'issues'" x-transition.opacity style="display: none;">
+                    <div class="mb-6">
+                        <h1 class="text-3xl font-bold font-display tracking-wide">缺失追蹤與異常閉環</h1>
+                        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1" x-text="selectedProject ? '專案：' + selectedProject.name : ''"></p>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <!-- Floor Plan Location Pins -->
+                        <div class="glass-panel p-4 rounded-xl lg:col-span-2 relative">
+                            <div class="flex justify-between items-center mb-4">
+                                <h3 class="font-bold font-mono">工地平面圖異常 Pin 點標記</h3>
+                            </div>
+                            <div class="bg-gray-800 rounded-lg h-[400px] border border-gray-700 relative overflow-hidden flex items-center justify-center">
+                                <svg viewBox="0 0 600 400" width="100%" height="100%" class="opacity-30">
+                                    <rect x="50" y="50" width="500" height="300" fill="none" stroke="#14b8a6" stroke-width="2"/>
+                                    <line x1="300" y1="50" x2="300" y2="350" stroke="#14b8a6" stroke-width="1"/>
+                                </svg>
+                                <template x-for="(issue, id, index) in (selectedProject ? selectedProject.issues : {})" :key="id">
+                                    <div class="absolute w-5 h-5 rounded-full border-2 border-white cursor-pointer shadow-lg animate-pulse hover:scale-125 transition-transform flex items-center justify-center font-mono text-[9px] font-bold text-white"
+                                         :class="issueDotClass(issue.status)"
+                                         :style="`top: ${35 + index * 18}%; left: ${40 + index * 15}%;`" 
+                                         @click="openIssue(id)">
+                                        <i class="fa-solid fa-location-dot"></i>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+
+                        <!-- Defect Detail & 7+ Stage Lifecycle Stepper -->
+                        <div class="glass-panel p-5 rounded-xl lg:col-span-1 border-t-4" :class="issueDetail.colorBorder || 'border-t-gray-500'">
+                            <template x-if="!selectedIssue">
+                                <div class="h-full flex flex-col items-center justify-center text-gray-500 font-mono text-sm text-center py-20">
+                                    <i class="fa-regular fa-hand-pointer text-4xl mb-3 opacity-50"></i>
+                                    點選平面圖上的 Pin 點標記<br>檢視缺失詳情與生命週期狀態
+                                </div>
+                            </template>
+                            <template x-if="selectedIssue">
+                                <div>
+                                    <div class="font-mono text-xs font-bold mb-1" :class="issueDetail.textColor" x-text="issueDetail.id"></div>
+                                    <h4 class="text-lg font-bold mb-3" x-text="issueDetail.title"></h4>
+                                    
+                                    <div class="space-y-2 font-mono text-sm mb-4 border-t border-b border-gray-200 dark:border-gray-700 py-3">
+                                        <div class="flex justify-between"><span class="text-gray-500">責任單位</span><span x-text="issueDetail.assignee"></span></div>
+                                        <div class="flex justify-between items-center">
+                                            <span class="text-gray-500">目前狀態</span>
+                                            <span class="px-2 py-0.5 rounded text-xs font-bold" :class="issueDetail.badgeClass" x-text="issueDetail.statusLabel"></span>
+                                        </div>
+                                    </div>
+
+                                    <!-- 7-Stage State Machine Stepper -->
+                                    <div class="mb-5">
+                                        <div class="flex items-center gap-0.5">
+                                            <template x-for="(stage, i) in issueStages" :key="stage.key">
+                                                <div class="flex-1 h-1.5 rounded-full" :class="issueStageDone(stage.key) ? 'bg-brand-500' : 'bg-gray-200 dark:bg-gray-700'"></div>
+                                            </template>
+                                        </div>
+                                        <div class="flex justify-between text-[9px] font-mono text-gray-400 mt-1">
+                                            <span>草稿</span><span>結案</span>
+                                        </div>
+                                    </div>
+
+                                    <!-- Dynamic Lifecycle Actions -->
+                                    <div class="space-y-2">
+                                        <template x-for="action in issueActionsFor(issueDetail)" :key="action.next">
+                                            <button @click="updateIssueStatus(action.next)" 
+                                                    class="w-full py-2 font-mono text-sm rounded shadow transition-colors"
+                                                    :class="action.style"
+                                                    x-text="action.label"></button>
+                                        </template>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ============================================= -->
+                <!-- 04. OWNER REPORT TAB -->
+                <!-- ============================================= -->
+                <div x-show="activeTab === 'owner'" x-transition.opacity style="display: none;">
+                    <div class="mb-6 flex justify-between items-end flex-wrap gap-4">
+                        <div>
+                            <h1 class="text-3xl font-bold font-display tracking-wide">地主與更新會報告 <span class="text-brand-500">OWNER REPORT</span></h1>
+                            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1" x-text="selectedProject ? '專案：' + selectedProject.name : ''"></p>
+                        </div>
+                        <div class="flex gap-2 font-mono text-sm">
+                            <button @click="ownerView = 'web'" class="px-4 py-2 rounded transition-colors" :class="ownerView === 'web' ? 'bg-brand-500 text-white' : 'border border-gray-400 text-gray-500'">網頁預覽</button>
+                            <button @click="ownerView = 'line'" class="px-4 py-2 rounded transition-colors" :class="ownerView === 'line' ? 'bg-[#06C755] text-white' : 'border border-gray-400 text-gray-500'">LINE 圖卡</button>
+                        </div>
+                    </div>
+
+                    <div x-show="ownerView === 'web'" class="glass-panel p-8 rounded-xl max-w-4xl mx-auto bg-[#F0EAD9]/90 dark:bg-surface-dark border-none">
+                        <div class="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm mb-6 border border-gray-200 dark:border-gray-700">
+                            <div class="flex justify-between items-baseline mb-2">
+                                <span class="text-4xl font-bold text-[#B5762A] dark:text-amber-500 font-display" x-text="selectedProject ? selectedProject.progress + '%' : '0%'"></span>
+                                <span class="text-sm text-gray-600 dark:text-gray-400 font-mono">本月整體工程進度</span>
+                            </div>
+                            <div class="h-3 w-full bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                                <div class="h-full bg-[#B5762A] dark:bg-amber-500 rounded-full" :style="`width: ${selectedProject ? selectedProject.progress : 0}%;`"></div>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-4 mb-6">
+                            <div class="bg-white dark:bg-gray-800 rounded-lg p-5 shadow-sm border border-gray-200 dark:border-gray-700 text-center">
+                                <div class="text-3xl font-bold text-blue-500 font-display" x-text="selectedProject ? selectedProject.inspectionCoverage + '%' : '0%'"></div>
+                                <div class="text-xs text-gray-500 font-mono mt-1">隱蔽工程查驗覆蓋率</div>
+                            </div>
+                            <div class="bg-white dark:bg-gray-800 rounded-lg p-5 shadow-sm border border-gray-200 dark:border-gray-700 text-center">
+                                <div class="text-3xl font-bold text-purple-500 font-display" x-text="selectedProject ? selectedProject.ownerTrustIndex + '%' : '0%'"></div>
+                                <div class="text-xs text-gray-500 font-mono mt-1">地主同意 / 信任指標</div>
+                            </div>
+                        </div>
+
+                        <div class="mt-8 p-5 bg-white/60 dark:bg-gray-800/60 rounded-lg text-sm text-gray-700 dark:text-gray-300 leading-relaxed font-mono">
+                            本案（<span x-text="selectedProject ? selectedProject.name : ''"></span>）目前正依排程穩健推進。所有隱蔽工程在封閉前皆已完成數位拍照與座標存證，保障住戶權益。
+                        </div>
+                    </div>
+
+                    <!-- LINE Card View (含下載圖卡功能) -->
+                    <div x-show="ownerView === 'line'" style="display:none;" class="flex flex-col items-center justify-center py-6">
+
+                        <button @click="downloadLineCard()" class="mb-6 px-5 py-2.5 bg-gray-800 hover:bg-gray-700 text-white rounded shadow-lg font-mono text-sm transition-colors border border-gray-600 flex items-center gap-2">
+                            <i class="fa-solid fa-download"></i> 📥 下載圖卡 (JPG)
+                        </button>
+
+                        <div id="lineCardNode" class="line-phone">
+                            <div class="line-header">👷 <span x-text="selectedProject ? selectedProject.name : ''"></span> 工程小組</div>
+                            <div class="line-body">
+                                <div class="line-time">今天 09:00</div>
+                                <div class="line-bubble system">📢 本月工程進度月報</div>
+                                <div class="line-bubble">
+                                    目前整體進度：<b x-text="selectedProject ? selectedProject.progress + '%' : '0%'"></b><br>
+                                    隱蔽工程查驗覆蓋率：<b x-text="selectedProject ? selectedProject.inspectionCoverage + '%' : '0%'"></b><br><br>
+                                    ✅ 各項排程與隱蔽工程皆按規範執行中，歡迎隨時預約現場了解！
+                                </div>
+                            </div>
+                        </div>
+                        <p class="text-center text-xs font-mono text-gray-500 mt-6 max-w-sm">
+                            點擊上方下載按鈕，即可將此圖卡存為圖片，方便您直接轉發至 LINE 地主群組報告進度。
+                        </p>
+                    </div>
+                </div>
+
+                <!-- ============================================= -->
+                <!-- 05. SCHEDULE IMPORT & AI SIMULATION TAB -->
+                <!-- ============================================= -->
+                <div x-show="activeTab === 'input'" x-transition.opacity style="display: none;">
+                    <div class="mb-6">
+                        <h1 class="text-3xl font-bold font-display tracking-wide">排程匯入與 AI 模擬 <span class="text-brand-500">SIMULATION</span></h1>
+                        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1" x-text="selectedProject ? '針對專案：' + selectedProject.name : ''"></p>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="glass-panel p-6 rounded-xl">
+                            <h3 class="font-bold font-mono mb-4 text-brand-600 dark:text-brand-400">匯入工程進度檔</h3>
+                            <div class="border-2 border-dashed border-brand-500/50 rounded-lg p-10 text-center cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-900/10 transition-colors">
+                                <i class="fa-solid fa-file-excel text-4xl text-gray-400 mb-3"></i>
+                                <div class="font-mono text-sm text-gray-600 dark:text-gray-300">拖曳或點擊選擇 Gantt / CSV 檔案</div>
+                            </div>
+                            <button class="w-full mt-4 py-2 border border-brand-500 text-brand-500 hover:bg-brand-500 hover:text-white font-mono text-sm rounded transition-colors">🔗 鏈結至 BIM 模型</button>
+                        </div>
+
+                        <div class="glass-panel p-6 rounded-xl">
+                            <h3 class="font-bold font-mono mb-4 text-brand-600 dark:text-brand-400">情境模擬參數</h3>
+                            <div class="space-y-4 font-mono text-sm">
+                                <div>
+                                    <label class="block text-gray-500 mb-1">延期天數</label>
+                                    <input type="number" value="7" class="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded p-2 outline-none focus:border-brand-500">
+                                </div>
+                                <div>
+                                    <label class="block text-gray-500 mb-1">技術規範 / 條件變更</label>
+                                    <select class="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded p-2 outline-none focus:border-brand-500">
+                                        <option>材料到貨延遲</option>
+                                        <option>技術規範變更</option>
+                                        <option>天候影響</option>
+                                    </select>
+                                </div>
+                                <button @click="simShow = true" class="w-full py-2 bg-brand-500 hover:bg-brand-600 text-white rounded font-bold transition-colors">🤖 執行 AI 模擬重新計算</button>
+                            </div>
+
+                            <div x-show="simShow" x-transition class="mt-6 p-4 border border-brand-500/30 bg-brand-50 dark:bg-brand-900/20 rounded-lg">
+                                <div class="space-y-2 font-mono text-sm">
+                                    <div class="flex justify-between"><span class="text-gray-500">原預計完工日</span><span x-text="selectedProject ? selectedProject.endDate : '未定'"></span></div>
+                                    <div class="flex justify-between"><span class="text-gray-500">AI 新預估完工日</span><span class="text-red-500 font-bold" x-text="selectedProject ? selectedProject.newEndDate : '未定'"></span></div>
+                                    <div class="flex justify-between"><span class="text-gray-500">受影響工項數</span><span x-text="selectedProject ? selectedProject.affectedTasks + ' 項' : '0 項'"></span></div>
+                                </div>
+                                <p class="text-xs text-gray-600 dark:text-gray-400 mt-3 pt-3 border-t border-brand-200 dark:border-brand-800 leading-relaxed">
+                                    建議：優先調整尚未開始之工項排序，並提前通知相關承商與監造單位覆核受影響工序。
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </main>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- INTERACTIVE S-CURVE BREAKDOWN MODAL -->
+    <!-- ========================================== -->
+    <div x-show="scurveModalOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" style="display: none;">
+        <div class="glass-panel bg-white dark:bg-surface-dark p-6 rounded-xl shadow-2xl w-full max-w-lg border border-gray-300 dark:border-gray-700">
+            <div class="flex justify-between items-center mb-4 pb-3 border-b border-gray-200 dark:border-gray-700">
+                <h3 class="font-bold font-mono text-lg text-brand-600 dark:text-brand-400">
+                    <i class="fa-regular fa-calendar-check mr-2"></i><span x-text="selectedScurveMonth + ' 進度細項對比 (S-Curve)'"></span>
+                </h3>
+                <button @click="scurveModalOpen = false" class="text-gray-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+
+            <!-- Two Categorized Columns -->
+            <div class="grid grid-cols-2 gap-4 font-mono text-sm">
+                <!-- Completed Items Column -->
+                <div class="bg-green-50 dark:bg-green-950/30 p-3 rounded-lg border border-green-200 dark:border-green-800">
+                    <h4 class="font-bold text-green-700 dark:text-green-400 mb-2 border-b border-green-300 pb-1">✅ 應完成 / 已完成</h4>
+                    <ul class="space-y-1.5 text-xs text-green-800 dark:text-green-300">
+                        <li>• B1 基礎開挖與勘驗</li>
+                        <li>• 1F 頂版混凝土澆置</li>
+                        <li>• 2F 牆面配線箱預留</li>
+                    </ul>
+                </div>
+
+                <!-- Uncompleted / Delayed Items Column -->
+                <div class="bg-red-50 dark:bg-red-950/30 p-3 rounded-lg border border-red-200 dark:border-red-800">
+                    <h4 class="font-bold text-red-700 dark:text-red-400 mb-2 border-b border-red-300 pb-1">⚠️ 未完成 / 滯後</h4>
+                    <ul class="space-y-1.5 text-xs text-red-800 dark:text-red-300">
+                        <li>• 3F 柱 A1~A5 鋼筋綁紮 (逾期 2 天)</li>
+                        <li>• 3F 301室 給排水套管放樣</li>
+                    </ul>
+                </div>
+            </div>
+
+            <button @click="scurveModalOpen = false" class="w-full mt-5 py-2 bg-gray-200 dark:bg-gray-800 hover:bg-gray-300 dark:hover:bg-gray-700 font-mono text-xs rounded transition-colors">
+                關閉視窗
+            </button>
+        </div>
+    </div>
+
+    <!-- Alpine App Logic -->
+    <script>
+        document.addEventListener('alpine:init', () => {
+            Alpine.data('appData', () => ({
+                isLoggedIn: false,
+                loginRole: 'supervisor',
+                role: 'supervisor',
+                darkMode: true,
+                sidebarOpen: true,
+                activeTab: 'projects',
+                ownerView: 'web',
+                simShow: false,
+                arWalkthroughMode: false,
+                scurveModalOpen: false,
+                selectedScurveMonth: '',
+
+                // Revamped WBS State
+                wbsBuilding: 'Bldg-A',
+                wbsStorey: '3F',
+                wbsCategory: 'all',
+                wbsStage: 'all',
+                wbsSpace: '',
+
+                // Taiwan 12 Workflow Stages List
+                taiwanStages: [
+                    { id: '1', name: '1. 測量放樣 (Survey & Layout)' },
+                    { id: '2', name: '2. 擋土工程 (Retaining/Earthwork)' },
+                    { id: '3', name: '3. 地下工程 (Underground Works)' },
+                    { id: '4', name: '4. 基礎工程 (Foundation)' },
+                    { id: '5', name: '5. 地下結構 (Substructure)' },
+                    { id: '6', name: '6. 主體結構 (Superstructure)' },
+                    { id: '7', name: '7. 機電粗配 (MEP Rough-in)' },
+                    { id: '8', name: '8. 隔間泥作 (Partitioning & Masonry)' },
+                    { id: '9', name: '9. 天花地坪油漆 (Ceiling/Flooring/Paint)' },
+                    { id: '10', name: '10. 設備安裝測試 (Equipment Installation)' },
+                    { id: '11', name: '11. 聯合測試與竣工查驗 (Joint Testing)' },
+                    { id: '12', name: '12. 點交屋 (Handover)' }
+                ],
+
+                // Data Store
+                projectList: [
+                    { 
+                        id: 'P01', name: '大安區 A2 危老重建案', status: '施工中', progress: 68, type: '危老重建', location: '台北市大安區',
+                        endDate: '2026/11/30', newEndDate: '2026/12/07', affectedTasks: 12,
+                        inspectionCoverage: 72, ownerTrustIndex: 88,
+                        buildings: [
+                            {
+                                id: 'Bldg-A', name: 'A棟',
+                                storeys: [
+                                    {
+                                        id: '3F', name: '3樓',
+                                        spaces: [
+                                            {
+                                                id: '301', name: '301室',
+                                                tasks: [
+                                                    { id: 'T-A2-003', stageId: '7', name: '給排水粗配管線', system: '機電', status: 'active', startDate: '2026-07-25', endDate: '2026-07-30', responsible: '張機電', bimGuid: 'IfcElement_3F_301_MEP', desc: '冷熱水管與排水套管定位查驗。' }
+                                                ]
+                                            },
+                                            {
+                                                id: 'COL', name: '柱列區 A1~A5',
+                                                tasks: [
+                                                    { id: 'T-A2-002', stageId: '6', name: '柱主筋鋼筋綁紮', system: '結構', status: 'delayed', startDate: '2026-07-15', endDate: '2026-07-20', responsible: '王營造', bimGuid: 'IfcElement_3F_COL_A1A5', desc: '包含箍筋間距與搭接長度查驗。' }
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                ]
+                            }
+                        ],
+                        issues: {
+                            'ISS-001': { id: 'ISS-001', title: '給排水管線坡度異常', assignee: '張機電 (機電)', status: 'pending_review' },
+                            'ISS-002': { id: 'ISS-002', title: '柱主筋搭接長度不足', assignee: '王工地主任 (營造)', status: 'in_progress' }
+                        }
+                    }
+                ],
+                selectedProject: null,
+                selectedEvidenceTaskId: 'T-A2-003',
+
+                // 7-Stage Defect State Machine
+                issueStages: [
+                    { key: 'draft', label: '草稿' },
+                    { key: 'pending_confirm', label: '待確認' },
+                    { key: 'pending_assign', label: '待指派' },
+                    { key: 'assigned', label: '已指派' },
+                    { key: 'acknowledged', label: '已知悉' },
+                    { key: 'in_progress', label: '改善中' },
+                    { key: 'pending_review', label: '待複驗' },
+                    { key: 'passed', label: '複驗通過' },
+                    { key: 'closed', label: '已結案' }
+                ],
+                statusMeta: {
+                    draft: { label: '草稿', badge: 'bg-gray-100 text-gray-700', border: 'border-t-gray-400', text: 'text-gray-500', dot: 'bg-gray-400' },
+                    pending_confirm: { label: '待確認', badge: 'bg-slate-100 text-slate-700', border: 'border-t-slate-400', text: 'text-slate-500', dot: 'bg-gray-400' },
+                    pending_assign: { label: '待指派', badge: 'bg-amber-100 text-amber-700', border: 'border-t-amber-500', text: 'text-amber-500', dot: 'bg-gray-400' },
+                    assigned: { label: '已指派', badge: 'bg-amber-100 text-amber-700', border: 'border-t-amber-500', text: 'text-amber-500', dot: 'bg-amber-500' },
+                    acknowledged: { label: '已知悉', badge: 'bg-blue-100 text-blue-700', border: 'border-t-blue-500', text: 'text-blue-500', dot: 'bg-amber-500' },
+                    in_progress: { label: '改善中', badge: 'bg-red-100 text-red-700', border: 'border-t-red-500', text: 'text-red-500', dot: 'bg-red-500' },
+                    pending_review: { label: '待複驗 (監造)', badge: 'bg-amber-100 text-amber-700', border: 'border-t-amber-500', text: 'text-amber-500', dot: 'bg-amber-500' },
+                    passed: { label: '複驗通過', badge: 'bg-teal-100 text-teal-700', border: 'border-t-teal-500', text: 'text-teal-500', dot: 'bg-teal-500' },
+                    closed: { label: '已結案', badge: 'bg-green-100 text-green-700', border: 'border-t-green-500', text: 'text-green-500', dot: 'bg-green-500' }
+                },
+                transitions: {
+                    draft: [ { label: '送出確認', next: 'pending_confirm', style: 'bg-brand-500 text-white', roles: ['contractor', 'supervisor'] } ],
+                    pending_confirm: [ { label: '確認並待指派', next: 'pending_assign', style: 'bg-brand-500 text-white', roles: ['supervisor'] } ],
+                    pending_assign: [ { label: '指派責任人', next: 'assigned', style: 'bg-amber-500 text-white', roles: ['supervisor'] } ],
+                    assigned: [ { label: '確認知悉', next: 'acknowledged', style: 'bg-blue-500 text-white', roles: ['contractor'] } ],
+                    acknowledged: [ { label: '開始改善', next: 'in_progress', style: 'bg-red-500 text-white', roles: ['contractor'] } ],
+                    in_progress: [ { label: '提報改善完成 (送出複驗)', next: 'pending_review', style: 'bg-brand-500 text-white', roles: ['contractor'] } ],
+                    pending_review: [
+                        { label: '✅ 複驗通過', next: 'passed', style: 'bg-teal-500 text-white', roles: ['supervisor'] },
+                        { label: '❌ 退回改善', next: 'in_progress', style: 'border border-red-500 text-red-500', roles: ['supervisor'] }
+                    ],
+                    passed: [ { label: '📁 結案存查', next: 'closed', style: 'bg-green-500 text-white', roles: ['supervisor'] } ],
+                    closed: []
+                },
+
+                // Computed Helpers
+                get pendingReviewCount() {
+                    if (!this.selectedProject || !this.selectedProject.issues) return 0;
+                    return Object.values(this.selectedProject.issues).filter(i => i.status === 'pending_review').length;
+                },
+                get pendingIssuesCount() {
+                    return this.selectedProject ? Object.keys(this.selectedProject.issues).length : 0;
+                },
+                get wbsStoreyOptions() {
+                    if (!this.selectedProject || !this.wbsBuilding) return [];
+                    const b = this.selectedProject.buildings.find(bb => bb.id === this.wbsBuilding);
+                    return b ? b.storeys : [];
+                },
+                get wbsSpaceOptions() {
+                    const storey = this.wbsStoreyOptions.find(s => s.id === this.wbsStorey);
+                    return storey ? storey.spaces : [];
+                },
+                get wbsSpaceName() {
+                    const sp = this.wbsSpaceOptions.find(s => s.id === this.wbsSpace);
+                    return sp ? sp.name : '';
+                },
+                get filteredWbsSpaces() {
+                    let spaces = this.wbsSpaceOptions;
+                    if (this.wbsSpace) {
+                        spaces = spaces.filter(s => s.id === this.wbsSpace);
+                    }
+                    return spaces.map(sp => {
+                        let tasks = sp.tasks;
+                        if (this.wbsCategory !== 'all') {
+                            tasks = tasks.filter(t => t.system === this.wbsCategory);
+                        }
+                        if (this.wbsStage !== 'all') {
+                            tasks = tasks.filter(t => t.stageId === this.wbsStage);
+                        }
+                        return { ...sp, tasks };
+                    });
+                },
+                get evidenceTaskOptions() {
+                    if (!this.selectedProject) return [];
+                    let list = [];
+                    this.selectedProject.buildings.forEach(b => {
+                        b.storeys.forEach(s => {
+                            s.spaces.forEach(sp => {
+                                sp.tasks.forEach(t => {
+                                    list.push({ building: b.name, storey: s.name, space: sp.name, task: t });
+                                });
+                            });
+                        });
+                    });
+                    return list;
+                },
+                get selectedEvidenceTask() {
+                    const opt = this.evidenceTaskOptions.find(o => o.task.id === this.selectedEvidenceTaskId);
+                    return opt ? opt.task : null;
+                },
+                get currentEvidenceSpaceTag() {
+                    const opt = this.evidenceTaskOptions.find(o => o.task.id === this.selectedEvidenceTaskId);
+                    return opt ? (opt.building + '/' + opt.storey + '/' + opt.space) : '';
+                },
+                get nowTimestamp() {
+                    const d = new Date();
+                    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+                },
+                get roleAvatar() {
+                    return 'https://ui-avatars.com/api/?name=' + encodeURIComponent(this.roleName) + '&background=14b8a6&color=fff';
+                },
+                get roleName() {
+                    const m = { supervisor: '林監造', contractor: '王工地主任', owner: '陳理事長' };
+                    return m[this.role] || '';
+                },
+                get roleTitle() {
+                    const m = { supervisor: '監造單位 / 工務主管', contractor: '營造廠 / 現場工程師', owner: '地主 / 更新會代表' };
+                    return m[this.role] || '';
+                },
+                get allContractorTasks() {
+                    let tasks = [];
+                    this.projectList.forEach(p => {
+                        (p.buildings || []).forEach(b => {
+                            (b.storeys || []).forEach(s => {
+                                (s.spaces || []).forEach(sp => {
+                                    (sp.tasks || []).forEach(t => {
+                                        tasks.push({ proj: p, building: b.name, storey: s.name, space: sp.name, task: t });
+                                    });
+                                });
+                            });
+                        });
+                    });
+                    return tasks;
+                },
+
+                // Navigation Items
+                navItems: [
+                    { id: 'projects', label: '專案總覽', icon: 'fa-house', isMain: true, roles: ['supervisor', 'contractor', 'owner'] },
+                    { id: 'progress', label: 'WBS 空間與工序追蹤', icon: 'fa-bars-progress', isMain: false, roles: ['supervisor', 'contractor'] },
+                    { id: 'bim', label: 'BIM 證據與 AR 對比', icon: 'fa-camera-retro', isMain: false, roles: ['supervisor', 'contractor', 'owner'] },
+                    { id: 'issues', label: '缺失與異常閉環', icon: 'fa-triangle-exclamation', isMain: false, roles: ['supervisor', 'contractor', 'owner'] },
+                    { id: 'owner', label: '地主報告', icon: 'fa-file-invoice', isMain: false, roles: ['supervisor', 'owner'] },
+                    { id: 'input', label: '排程匯入/模擬', icon: 'fa-flask', isMain: false, roles: ['supervisor'] }
+                ],
+                get currentTabLabel() {
+                    return this.navItems.find(i => i.id === this.activeTab)?.label || 'Overview';
+                },
+
+                // Actions & Navigation Methods
+                jumpToIssues(status) {
+                    this.activeTab = 'issues';
+                    if (this.selectedProject && Object.keys(this.selectedProject.issues).length) {
+                        const keys = Object.keys(this.selectedProject.issues);
+                        const match = keys.find(k => this.selectedProject.issues[k].status === status);
+                        this.selectedIssue = match || keys[0];
+                    }
+                },
+                jumpToBIMEvidence(task) {
+                    this.selectedEvidenceTaskId = task.id;
+                    this.activeTab = 'bim';
+                },
+
+                enterProject(proj) {
+                    this.selectedProject = proj;
+                    this.activeTab = 'projects';
+                    if (this.role === 'supervisor') {
+                        setTimeout(() => this.initChart(), 100);
+                    }
+                },
+                enterWBS(proj) {
+                    this.selectedProject = proj;
+                    this.activeTab = 'progress';
+                },
+                enterEvidence(proj) {
+                    this.selectedProject = proj;
+                    this.activeTab = 'bim';
+                },
+
+                handleRoleSwitch() {
+                    const item = this.navItems.find(i => i.id === this.activeTab);
+                    if (item && !item.roles.includes(this.role)) {
+                        this.activeTab = 'projects';
+                    }
+                    if (this.activeTab === 'projects' && this.role === 'supervisor') {
+                        setTimeout(() => this.initChart(), 100);
+                    }
+                },
+
+                doLogin() {
+                    this.role = this.loginRole;
+                    this.isLoggedIn = true;
+                    this.selectedProject = this.projectList[0];
+                    this.activeTab = 'projects';
+                    if (this.role === 'supervisor') {
+                        setTimeout(() => this.initChart(), 200);
+                    }
+                },
+                doLogout() { this.isLoggedIn = false; },
+
+                capturePhoto() {
+                    if (this.selectedProject) {
+                        this.selectedProject.inspectionCoverage = Math.min(100, this.selectedProject.inspectionCoverage + 2);
+                    }
+                },
+                createIssue() { this.activeTab = 'issues'; },
+
+                // 下載 LINE 圖卡的功能 (使用 html2canvas)
+                downloadLineCard() {
+                    const node = document.getElementById('lineCardNode');
+                    if (!node) return;
+
+                    const originalBg = node.style.backgroundColor;
+                    node.style.backgroundColor = this.darkMode ? '#0f172a' : '#f9fafb';
+
+                    html2canvas(node, {
+                        scale: 2,
+                        useCORS: true,
+                        backgroundColor: null
+                    }).then(canvas => {
+                        node.style.backgroundColor = originalBg;
+                        const link = document.createElement('a');
+                        const projName = this.selectedProject ? this.selectedProject.name : '專案';
+                        link.download = `${projName}_LINE進度圖卡.jpg`;
+                        link.href = canvas.toDataURL('image/jpeg', 0.9);
+                        link.click();
+                    });
+                },
+
+                // Issue Stepper & Details
+                selectedIssue: null,
+                get issueDetail() {
+                    if (!this.selectedIssue || !this.selectedProject) return {};
+                    const issue = this.selectedProject.issues[this.selectedIssue];
+                    if (!issue) return {};
+                    const meta = this.statusMeta[issue.status] || this.statusMeta.draft;
+                    return { ...issue, statusLabel: meta.label, badgeClass: meta.badge, colorBorder: meta.border, textColor: meta.text };
+                },
+                openIssue(id) { this.selectedIssue = id; },
+                issueDotClass(status) { return (this.statusMeta[status] || this.statusMeta.draft).dot; },
+                issueStageDone(stageKey) {
+                    if (!this.selectedIssue || !this.selectedProject) return false;
+                    const issue = this.selectedProject.issues[this.selectedIssue];
+                    if (!issue) return false;
+                    const order = this.issueStages.map(s => s.key);
+                    return order.indexOf(stageKey) <= order.indexOf(issue.status);
+                },
+                issueActionsFor(detail) {
+                    if (!detail || !detail.status) return [];
+                    return (this.transitions[detail.status] || []).filter(a => a.roles.includes(this.role));
+                },
+                updateIssueStatus(newStatus) {
+                    if (this.selectedIssue && this.selectedProject && this.selectedProject.issues[this.selectedIssue]) {
+                        this.selectedProject.issues[this.selectedIssue].status = newStatus;
+                    }
+                },
+
+                // Chart.js S-Curve Implementation
+                chartInstance: null,
+                initChart() {
+                    const ctx = document.getElementById('scurveChart');
+                    if (!ctx) return;
+                    if (this.chartInstance) { this.chartInstance.destroy(); }
+                    
+                    const isDark = document.body.classList.contains('dark');
+                    const gc = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)';
+                    const tc = isDark ? '#94a3b8' : '#64748b';
+                    const prog = this.selectedProject ? this.selectedProject.progress : 50;
+
+                    this.chartInstance = new Chart(ctx.getContext('2d'), {
+                        type: 'line',
+                        data: {
+                            labels: ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月'],
+                            datasets: [
+                                {
+                                    label: '預定進度', data: [0, 8, 20, 38, 55, 70, 85, 100],
+                                    borderColor: '#94a3b8', borderDash: [5, 5], borderWidth: 2, tension: 0.4, pointRadius: 2
+                                },
+                                {
+                                    label: '實際進度', data: [0, 6, 18, 35, 50, 68, prog, null],
+                                    borderColor: '#14b8a6', backgroundColor: 'rgba(20, 184, 166, 0.1)',
+                                    borderWidth: 3, tension: 0.4, fill: true, pointBackgroundColor: '#14b8a6', pointRadius: 5
+                                }
+                            ]
+                        },
+                        options: {
+                            responsive: true, maintainAspectRatio: false,
+                            onClick: (e, elements) => {
+                                if (elements.length > 0) {
+                                    const index = elements[0].index;
+                                    this.selectedScurveMonth = this.chartInstance.data.labels[index];
+                                    this.scurveModalOpen = true;
+                                }
+                            },
+                            plugins: { legend: { position: 'top', align: 'end', labels: { color: tc, boxWidth: 10 } } },
+                            scales: {
+                                x: { grid: { color: gc }, ticks: { color: tc, font: {family: 'IBM Plex Mono'} } },
+                                y: { grid: { color: gc }, ticks: { color: tc, font: {family: 'IBM Plex Mono'}, callback: v => v + '%' }, min: 0, max: 100 }
+                            }
+                        }
+                    });
+                }
+            }));
+        });
+    </script>
+</body>
+</html>
